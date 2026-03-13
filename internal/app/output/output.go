@@ -212,13 +212,17 @@ func FormatReadResult(result *client.ReadResult, dataType, format string, meta *
 		if result.Error != "" {
 			statusDetail = status + " — " + result.Error
 		}
+		warnings := result.Warnings
+		if warnings == nil {
+			warnings = []string{}
+		}
 		res := map[string]interface{}{
 			"status":           status,
 			"status_detail":    statusDetail,
 			"requested_length": result.RequestedLength,
 			"returned_length":  result.ReturnedLength,
 			"raw_hex":          hex.EncodeToString(data),
-			"warnings":         result.Warnings,
+			"warnings":         warnings,
 		}
 		if result.Error != "" {
 			res["error"] = result.Error

@@ -1,8 +1,10 @@
 package s7commctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/otfabric/s7comm/client"
 
@@ -39,12 +41,14 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 	c := client.New(diagnosticConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
+		diagnosticFailJSON(diagnosticConfig.Format, fmt.Sprintf("connect failed: %v", err))
 		return fmt.Errorf("connect failed: %w", err)
 	}
 	defer func() { _ = c.Close() }()
 
 	diag, err := c.ReadDiagBuffer(cmd.Context())
 	if err != nil {
+		diagnosticFailJSON(diagnosticConfig.Format, fmt.Sprintf("read diagnostic buffer failed: %v", err))
 		return fmt.Errorf("read diagnostic buffer failed: %w", err)
 	}
 
@@ -70,4 +74,28 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 
 	_, _ = fmt.Fprint(os.Stdout, output.FormatDiagBuffer(diag, diagnosticConfig.Format))
 	return nil
+}
+
+// diagnosticFailJSON prints a structured error envelope to stdout and exits 1 when format is json (IMPROVEMENT_PLAN 2.3).
+func diagnosticFailJSON(format, errMsg string) {
+	if strings.ToLower(format) != output.FormatJSON {
+		return
+	}
+	port := diagnosticConfig.Port
+	if port == 0 {
+		port = 102
+	}
+	out := map[string]interface{}{
+		"status": "error",
+		"error":  errMsg,
+		"target": map[string]interface{}{
+			"ip":   diagnosticConfig.IP,
+			"port": port,
+			"rack": diagnosticConfig.Rack,
+			"slot": diagnosticConfig.Slot,
+		},
+	}
+	data, _ := json.MarshalIndent(out, "", "  ")
+	_, _ = fmt.Fprintln(os.Stdout, string(data))
+	os.Exit(1)
 }

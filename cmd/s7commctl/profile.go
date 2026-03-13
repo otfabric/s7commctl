@@ -65,14 +65,17 @@ func runProfile(cmd *cobra.Command, args []string) error {
 	setupSupport := probeRes.SetupAccepted > 0
 	confirmedByQuery := probeRes.ConfirmedByQuery > 0
 	var firstValid *client.RackSlotCandidate
+	var recommendedRack, recommendedSlot int
 	if len(probeRes.Valid) > 0 {
 		firstValid = &probeRes.Valid[0]
+		recommendedRack, recommendedSlot = firstValid.Rack, firstValid.Slot
 	}
 
 	// Optional: identify and list blocks using first valid
 	var identifyInfo *model.DeviceInfo
 	var blockCount int
 	var identifyOK, blocksOK bool
+	var identifyFieldsFound bool
 
 	if firstValid != nil {
 		opts := []client.Option{
@@ -88,6 +91,7 @@ func runProfile(cmd *cobra.Command, args []string) error {
 			if info, err := c.Identify(ctx); err == nil {
 				identifyInfo = info
 				identifyOK = true
+				identifyFieldsFound = profileHasIdentifyFields(info)
 			}
 			if blocks, err := c.ListAllBlocks(ctx); err == nil {
 				blockCount = len(blocks)
@@ -98,23 +102,27 @@ func runProfile(cmd *cobra.Command, args []string) error {
 
 	format := strings.ToLower(profileConfig.Format)
 	if format == output.FormatJSON {
-		printProfileJSON(profileConfig.IP, profileConfig.Port, setupSupport, confirmedByQuery, firstValid, identifyInfo, identifyOK, blockCount, blocksOK)
+		printProfileJSON(profileConfig.IP, profileConfig.Port, setupSupport, confirmedByQuery, firstValid != nil, recommendedRack, recommendedSlot, identifyInfo, identifyOK, identifyFieldsFound, blockCount, blocksOK)
 		return nil
 	}
 
-	// Text summary
+	// Text summary (single source: recommendedRack/recommendedSlot for both plain and JSON - IMPROVEMENT_PLAN 4.1)
 	fmt.Printf("Target: %s\n", profileConfig.IP)
 	fmt.Printf("Port: %d\n", profileConfig.Port)
 	fmt.Println()
 	fmt.Println("Setup support:        ", yesNo(setupSupport))
 	fmt.Println("Rack/slot confirmed:  ", yesNo(confirmedByQuery))
 	if firstValid != nil {
-		fmt.Printf("Recommended rack/slot: %d/%d\n", firstValid.Rack, firstValid.Slot)
+		fmt.Printf("Recommended rack/slot: %d/%d\n", recommendedRack, recommendedSlot)
 	} else {
 		fmt.Println("Recommended rack/slot: (none)")
 	}
 	fmt.Println()
-	fmt.Println("Identify support:     ", yesNo(identifyOK))
+	identifyLabel := yesNo(identifyOK)
+	if identifyOK && !identifyFieldsFound {
+		identifyLabel = "partial"
+	}
+	fmt.Println("Identify support:     ", identifyLabel)
 	if identifyInfo != nil {
 		if identifyInfo.CPUType != "" {
 			fmt.Printf("  CPU type:   %s\n", identifyInfo.CPUType)
@@ -128,7 +136,9 @@ func runProfile(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("Block list support:   ", yesNo(blocksOK))
 	if blocksOK {
-		fmt.Printf("  Blocks:     %d\n", blockCount)
+		fmt.Printf("  Block count: %d\n", blockCount)
+	} else {
+		fmt.Println("  (command failed or not attempted)")
 	}
 	fmt.Println()
 	return nil
@@ -141,18 +151,19 @@ func yesNo(b bool) string {
 	return "no"
 }
 
-func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, firstValid *client.RackSlotCandidate, identifyInfo *model.DeviceInfo, identifyOK bool, blockCount int, blocksOK bool) {
+func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, hasRecommended bool, recommendedRack, recommendedSlot int, identifyInfo *model.DeviceInfo, identifyOK, identifyFieldsFound bool, blockCount int, blocksOK bool) {
 	out := map[string]interface{}{
-		"target":              ip,
-		"port":                port,
-		"setup_support":       setupSupport,
-		"rack_slot_confirmed": confirmedByQuery,
-		"identify_support":    identifyOK,
-		"block_list_support":  blocksOK,
+		"target":                 ip,
+		"port":                   port,
+		"setup_support":          setupSupport,
+		"rack_slot_confirmed":    confirmedByQuery,
+		"identify_transport_ok":  identifyOK,
+		"identify_fields_found":  identifyFieldsFound,
+		"block_list_support":     blocksOK,
 	}
-	if firstValid != nil {
-		out["recommended_rack"] = firstValid.Rack
-		out["recommended_slot"] = firstValid.Slot
+	if hasRecommended {
+		out["recommended_rack"] = recommendedRack
+		out["recommended_slot"] = recommendedSlot
 	}
 	if identifyInfo != nil {
 		out["identify"] = map[string]interface{}{
@@ -169,8 +180,20 @@ func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, 
 }
 
 func profileStrOrNull(s string) interface{} {
-	if s == "" {
+	if s == "" || s == "N/A" {
 		return nil
 	}
 	return s
+}
+
+func profileHasIdentifyFields(info *model.DeviceInfo) bool {
+	if info == nil {
+		return false
+	}
+	for _, s := range []string{info.CPUType, info.OrderNumber, info.ModuleName, info.SerialNumber, info.FWVersion} {
+		if s != "" && s != "N/A" {
+			return true
+		}
+	}
+	return false
 }

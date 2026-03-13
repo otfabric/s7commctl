@@ -73,8 +73,9 @@ func runRead(cmd *cobra.Command, args []string) error {
 		IP: readConfig.IP, Port: readConfig.Port, Rack: readConfig.Rack, Slot: readConfig.Slot,
 		Area: readConfig.Area, DBNumber: readConfig.DBNumber, Offset: readConfig.Offset, RequestedSize: readConfig.Size,
 	}))
+	// On strict-read failure, exit 1 without returning error so Cobra does not print the error again (IMPROVEMENT_PLAN 4.4).
 	if result != nil && result.Err() != nil && readConfig.StrictRead {
-		return result.Err()
+		os.Exit(1)
 	}
 	return nil
 }

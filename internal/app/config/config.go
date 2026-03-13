@@ -174,6 +174,8 @@ type ProbeRackSlotConfig struct {
 	FirstConfirmed    bool   `flag:"first-confirmed" env:"S7COMMCTL_PROBE_FIRST_CONFIRMED" desc:"Stop after first valid-query (strict mode)"`
 	ShowAll           bool   `flag:"show-all" env:"S7COMMCTL_PROBE_SHOW_ALL" desc:"Show all candidates in table including non-valid"`
 	SummaryOnly       bool   `flag:"summary-only" env:"S7COMMCTL_PROBE_SUMMARY_ONLY" desc:"Print only summary and interpretation (no table or examples)"`
+	Repeat            int    `flag:"repeat" env:"S7COMMCTL_PROBE_REPEAT" desc:"Run probe N times and report variance (for rate-sensitive endpoints)"`
+	RepeatIntervalMS  int    `flag:"interval-ms" env:"S7COMMCTL_PROBE_INTERVAL_MS" desc:"Delay between repeat runs in ms"`
 	LocalTSAP         string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
 	RemoteTSAP        string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
 	Format            string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`

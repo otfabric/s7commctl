@@ -1,9 +1,11 @@
 package s7commctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/otfabric/s7comm/client"
 
@@ -44,26 +46,41 @@ func runProbeRackSlot(cmd *cobra.Command, args []string) error {
 	warnIfPublicTarget(probeRackSlotConfig.IP, false, "verify authorization and network exposure", probeRackSlotConfig.NoExposureWarning)
 
 	req := probeRackSlotConfig.ToProbeRequest()
-	result, err := client.ProbeRackSlots(cmd.Context(), req)
-	if err != nil {
-		return fmt.Errorf("probe failed: %w", err)
+	repeat := probeRackSlotConfig.Repeat
+	if repeat < 1 {
+		repeat = 1
 	}
+	interval := time.Duration(probeRackSlotConfig.RepeatIntervalMS) * time.Millisecond
+
+	var results []*client.RackSlotProbeResult
+	for i := 0; i < repeat; i++ {
+		result, err := client.ProbeRackSlots(cmd.Context(), req)
+		if err != nil {
+			return fmt.Errorf("probe failed: %w", err)
+		}
+		results = append(results, result)
+		if i < repeat-1 && interval > 0 {
+			time.Sleep(interval)
+		}
+	}
+	result := results[len(results)-1]
+	variance := repeat > 1 && probeVariance(results)
 
 	format := strings.ToLower(probeRackSlotConfig.Format)
 	switch format {
 	case output.FormatJSON:
-		output.PrintJSON(result)
+		printProbeResultJSON(result, variance, results)
 	case output.FormatTable:
 		if probeRackSlotConfig.SummaryOnly {
-			printProbeSummaryOnly(result)
+			printProbeSummaryOnly(result, variance, results)
 		} else {
-			printProbeRackSlotTable(result)
+			printProbeRackSlotTable(result, variance, results)
 		}
 	default:
 		if probeRackSlotConfig.SummaryOnly {
-			printProbeSummaryOnly(result)
+			printProbeSummaryOnly(result, variance, results)
 		} else {
-			printProbeRackSlotText(result)
+			printProbeRackSlotText(result, variance, results)
 		}
 	}
 
@@ -73,8 +90,41 @@ func runProbeRackSlot(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printProbeRackSlotTable(res *client.RackSlotProbeResult) {
+// probeVariance returns true if setup_accepted, confirmed_by_query, tcp_only or flaky differ across runs.
+func probeVariance(results []*client.RackSlotProbeResult) bool {
+	if len(results) < 2 {
+		return false
+	}
+	first := results[0]
+	for _, r := range results[1:] {
+		if r.SetupAccepted != first.SetupAccepted || r.ConfirmedByQuery != first.ConfirmedByQuery ||
+			r.TCPOnly != first.TCPOnly || r.Flaky != first.Flaky {
+			return true
+		}
+	}
+	return false
+}
+
+// probeStatusDisplay maps client status to display string in strict mode (IMPROVEMENT_PLAN 3.1).
+func probeStatusDisplay(status string, strict bool) string {
+	if !strict {
+		return status
+	}
+	switch status {
+	case "valid-connect", "setup-only":
+		return "setup-ok"
+	case "valid-query":
+		return "query-confirmed"
+	default:
+		return status
+	}
+}
+
+func printProbeRackSlotTable(res *client.RackSlotProbeResult, variance bool, results []*client.RackSlotProbeResult) {
 	fmt.Printf("Target: %s\n", res.Address)
+	if len(results) > 1 {
+		printProbeRepeatSummary(results, variance)
+	}
 	mode := "default (setup accepted = valid)"
 	if probeRackSlotConfig.Strict {
 		confirm := strings.ToLower(string(probeRackSlotConfig.Confirm))
@@ -89,13 +139,14 @@ func printProbeRackSlotTable(res *client.RackSlotProbeResult) {
 	fmt.Printf("Mode: %s\n\n", mode)
 	showAll := probeRackSlotConfig.ShowAll
 	candidates := res.Candidates
+	strict := probeRackSlotConfig.Strict
 	const maxExamplesPerStatus = 5
 	if !showAll && len(candidates) > 15 {
-		// Collapsed: summary by status + first N examples per status
+		// Collapsed: summary by status + first N examples per status (use display status for grouping when strict)
 		statusCounts := make(map[string]int)
 		statusExamples := make(map[string][]client.RackSlotCandidate)
 		for _, c := range candidates {
-			s := string(c.Status)
+			s := probeStatusDisplay(string(c.Status), strict)
 			statusCounts[s]++
 			if len(statusExamples[s]) < maxExamplesPerStatus {
 				statusExamples[s] = append(statusExamples[s], c)
@@ -119,8 +170,9 @@ func printProbeRackSlotTable(res *client.RackSlotProbeResult) {
 				if confirmedBy == "none" || confirmedBy == "" {
 					confirmedBy = "-"
 				}
+				disp := probeStatusDisplay(string(c.Status), strict)
 				_, _ = fmt.Fprintf(os.Stdout, "%-4d  %-4d  %-6s  %-13s  %-3d  %-11s  %-10s  %s\n",
-					c.Rack, c.Slot, c.Stage, c.Status, c.PDUSize, confirmedBy, c.Confidence, errStr)
+					c.Rack, c.Slot, c.Stage, disp, c.PDUSize, confirmedBy, c.Confidence, errStr)
 			}
 		}
 	} else {
@@ -135,8 +187,9 @@ func printProbeRackSlotTable(res *client.RackSlotProbeResult) {
 			if confirmedBy == "none" || confirmedBy == "" {
 				confirmedBy = "-"
 			}
+			disp := probeStatusDisplay(string(c.Status), strict)
 			_, _ = fmt.Fprintf(os.Stdout, "%-4d  %-4d  %-6s  %-13s  %-3d  %-11s  %-10s  %s\n",
-				c.Rack, c.Slot, c.Stage, c.Status, c.PDUSize, confirmedBy, c.Confidence, errStr)
+				c.Rack, c.Slot, c.Stage, disp, c.PDUSize, confirmedBy, c.Confidence, errStr)
 		}
 	}
 	fmt.Println()
@@ -147,35 +200,107 @@ func printProbeRackSlotTable(res *client.RackSlotProbeResult) {
 	if res.Flaky > 0 {
 		fmt.Printf("- Flaky: %d\n", res.Flaky)
 	}
+	collapsed := !showAll && len(candidates) > 15
 	if len(res.Valid) > 0 {
 		fmt.Println()
-		if probeRackSlotConfig.Strict {
-			fmt.Println("Query-confirmed combinations:")
+		if collapsed {
+			fmt.Printf("Setup-accepted combinations: %d total (use --show-all or --format json for full details).\n", len(res.Valid))
 		} else {
-			fmt.Println("Setup-accepted combinations:")
-		}
-		for _, c := range res.Valid {
-			by := string(c.ConfirmedBy)
-			if by == "none" || by == "" {
-				by = "setup"
+			if probeRackSlotConfig.Strict {
+				fmt.Println("Query-confirmed combinations:")
+			} else {
+				fmt.Println("Setup-accepted combinations:")
 			}
-			fmt.Printf("- rack=%d slot=%d (confirmed by %s, PDU=%d)\n", c.Rack, c.Slot, by, c.PDUSize)
+			for _, c := range res.Valid {
+				by := string(c.ConfirmedBy)
+				if by == "none" || by == "" {
+					by = "setup"
+				}
+				fmt.Printf("- rack=%d slot=%d (confirmed by %s, PDU=%d)\n", c.Rack, c.Slot, by, c.PDUSize)
+			}
 		}
 	}
-	printProbeInterpretation(res)
+	printProbeInterpretation(res, true, variance)
 }
 
-func printProbeInterpretation(res *client.RackSlotProbeResult) {
+// printProbeRepeatSummary prints "Repeat (N runs):" with min-max and optional variance line (IMPROVEMENT_PLAN 5.1).
+func printProbeRepeatSummary(results []*client.RackSlotProbeResult, variance bool) {
+	if len(results) < 2 {
+		return
+	}
+	minSA, maxSA := results[0].SetupAccepted, results[0].SetupAccepted
+	minCQ, maxCQ := results[0].ConfirmedByQuery, results[0].ConfirmedByQuery
+	minTCP, maxTCP := results[0].TCPOnly, results[0].TCPOnly
+	minF, maxF := results[0].Flaky, results[0].Flaky
+	for _, r := range results[1:] {
+		if r.SetupAccepted < minSA {
+			minSA = r.SetupAccepted
+		}
+		if r.SetupAccepted > maxSA {
+			maxSA = r.SetupAccepted
+		}
+		if r.ConfirmedByQuery < minCQ {
+			minCQ = r.ConfirmedByQuery
+		}
+		if r.ConfirmedByQuery > maxCQ {
+			maxCQ = r.ConfirmedByQuery
+		}
+		if r.TCPOnly < minTCP {
+			minTCP = r.TCPOnly
+		}
+		if r.TCPOnly > maxTCP {
+			maxTCP = r.TCPOnly
+		}
+		if r.Flaky < minF {
+			minF = r.Flaky
+		}
+		if r.Flaky > maxF {
+			maxF = r.Flaky
+		}
+	}
+	fmt.Printf("Repeat (%d runs):\n", len(results))
+	if minSA == maxSA {
+		fmt.Printf("- Setup accepted: %d\n", maxSA)
+	} else {
+		fmt.Printf("- Setup accepted: %d–%d\n", minSA, maxSA)
+	}
+	if minCQ == maxCQ {
+		fmt.Printf("- Confirmed by query: %d\n", maxCQ)
+	} else {
+		fmt.Printf("- Confirmed by query: %d–%d\n", minCQ, maxCQ)
+	}
+	if minTCP == maxTCP {
+		fmt.Printf("- TCP-only: %d\n", maxTCP)
+	} else {
+		fmt.Printf("- TCP-only: %d–%d\n", minTCP, maxTCP)
+	}
+	if maxF > 0 {
+		if minF == maxF {
+			fmt.Printf("- Flaky: %d\n", maxF)
+		} else {
+			fmt.Printf("- Flaky: %d–%d\n", minF, maxF)
+		}
+	}
+	if variance {
+		fmt.Println("- Results varied across runs; endpoint may be rate-sensitive or unstable.")
+	}
+	fmt.Println()
+}
+
+// includeRecommendedTuple when true prints the recommended/suggested tuple in the interpretation block.
+func printProbeInterpretation(res *client.RackSlotProbeResult, includeRecommendedTuple bool, variance bool) {
 	fmt.Println()
 	fmt.Println("Interpretation:")
+	if variance {
+		fmt.Println("- Results varied across runs; endpoint may be rate-sensitive or unstable.")
+	}
 	if res.SetupAccepted == 0 && res.TCPOnly == 0 {
 		fmt.Println("- No successful TCP or setup; target unreachable or not speaking S7.")
 		return
 	}
-	// REQUIREMENTS #24: recommended connection tuple when we have valid candidates
-	if len(res.Valid) > 0 {
+	if includeRecommendedTuple && len(res.Valid) > 0 {
 		first := res.Valid[0]
-		fmt.Printf("- Recommended connection tuple: rack=%d slot=%d\n", first.Rack, first.Slot)
+		fmt.Printf("- Suggested default tuple: rack=%d slot=%d\n", first.Rack, first.Slot)
 		if res.ConfirmedByQuery > 0 {
 			fmt.Println("- Reason: first query-confirmed candidate.")
 		} else {
@@ -199,9 +324,12 @@ func printProbeInterpretation(res *client.RackSlotProbeResult) {
 	}
 }
 
-// printProbeSummaryOnly prints only summary and interpretation (REQUIREMENTS #25).
-func printProbeSummaryOnly(res *client.RackSlotProbeResult) {
+// printProbeSummaryOnly prints only summary and interpretation; no full candidate list (IMPROVEMENT_PLAN 1.1).
+func printProbeSummaryOnly(res *client.RackSlotProbeResult, variance bool, results []*client.RackSlotProbeResult) {
 	fmt.Printf("Target: %s\n", res.Address)
+	if len(results) > 1 {
+		printProbeRepeatSummary(results, variance)
+	}
 	fmt.Println()
 	fmt.Println("Summary:")
 	fmt.Printf("- Setup accepted: %d\n", res.SetupAccepted)
@@ -212,27 +340,70 @@ func printProbeSummaryOnly(res *client.RackSlotProbeResult) {
 	}
 	if len(res.Valid) > 0 {
 		fmt.Println()
-		if probeRackSlotConfig.Strict {
-			fmt.Println("Query-confirmed combinations:")
-		} else {
-			fmt.Println("Setup-accepted combinations:")
-		}
-		for _, c := range res.Valid {
-			by := string(c.ConfirmedBy)
-			if by == "none" || by == "" {
-				by = "setup"
-			}
-			fmt.Printf("- rack=%d slot=%d (confirmed by %s, PDU=%d)\n", c.Rack, c.Slot, by, c.PDUSize)
-		}
+		fmt.Println("Recommended connection tuple:")
+		first := res.Valid[0]
+		fmt.Printf("- rack=%d slot=%d\n", first.Rack, first.Slot)
+		fmt.Printf("Setup-accepted combinations: %d total (use --show-all or --format json for full list).\n", len(res.Valid))
 	}
-	printProbeInterpretation(res)
+	printProbeInterpretation(res, false, variance) // interpretation text only; tuple already printed above
 }
 
-func printProbeRackSlotText(res *client.RackSlotProbeResult) {
+func printProbeRackSlotText(res *client.RackSlotProbeResult, variance bool, results []*client.RackSlotProbeResult) {
+	if len(results) > 1 {
+		printProbeRepeatSummary(results, variance)
+	}
 	fmt.Printf("target=%s candidates=%d valid=%d setup_accepted=%d confirmed_by_query=%d tcp_only=%d\n",
 		res.Address, len(res.Candidates), len(res.Valid), res.SetupAccepted, res.ConfirmedByQuery, res.TCPOnly)
+	strict := probeRackSlotConfig.Strict
 	for _, c := range res.Candidates {
+		disp := probeStatusDisplay(string(c.Status), strict)
 		_, _ = fmt.Fprintf(os.Stdout, "  rack=%d slot=%d stage=%s status=%s pdu=%d confirmed_by=%s confidence=%s error=%s\n",
-			c.Rack, c.Slot, c.Stage, c.Status, c.PDUSize, c.ConfirmedBy, c.Confidence, c.Error)
+			c.Rack, c.Slot, c.Stage, disp, c.PDUSize, c.ConfirmedBy, c.Confidence, c.Error)
 	}
+}
+
+// printProbeResultJSON outputs probe result with snake_case keys (IMPROVEMENT_PLAN 2.4); status display-mapped when strict (3.1).
+func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, results []*client.RackSlotProbeResult) {
+	strict := probeRackSlotConfig.Strict
+	candidates := make([]map[string]interface{}, 0, len(res.Candidates))
+	for _, c := range res.Candidates {
+		candidates = append(candidates, map[string]interface{}{
+			"rack":          c.Rack,
+			"slot":          c.Slot,
+			"stage":         string(c.Stage),
+			"status":        probeStatusDisplay(string(c.Status), strict),
+			"pdu_size":      c.PDUSize,
+			"confirmed_by":  string(c.ConfirmedBy),
+			"confidence":    string(c.Confidence),
+			"error":         c.Error,
+		})
+	}
+	valid := make([]map[string]interface{}, 0, len(res.Valid))
+	for _, c := range res.Valid {
+		valid = append(valid, map[string]interface{}{
+			"rack":          c.Rack,
+			"slot":          c.Slot,
+			"stage":         string(c.Stage),
+			"status":        probeStatusDisplay(string(c.Status), strict),
+			"pdu_size":      c.PDUSize,
+			"confirmed_by":  string(c.ConfirmedBy),
+			"confidence":    string(c.Confidence),
+			"error":         c.Error,
+		})
+	}
+	out := map[string]interface{}{
+		"address":            res.Address,
+		"candidates":         candidates,
+		"valid":              valid,
+		"setup_accepted":     res.SetupAccepted,
+		"confirmed_by_query": res.ConfirmedByQuery,
+		"tcp_only":           res.TCPOnly,
+		"flaky":              res.Flaky,
+	}
+	if len(results) > 1 {
+		out["repeat_runs"] = len(results)
+		out["results_varied"] = variance
+	}
+	data, _ := json.MarshalIndent(out, "", "  ")
+	_, _ = fmt.Fprintln(os.Stdout, string(data))
 }

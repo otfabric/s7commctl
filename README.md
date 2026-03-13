@@ -205,7 +205,7 @@ Custom rack/slot range and JSON output:
 s7commctl probe rackslot --ip 192.168.1.10 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 7 --format json
 ```
 
-Use `--summary-only` to print only the summary and interpretation (no table or examples). Use `--no-exposure-warning` (or env `S7COMMCTL_NO_EXPOSURE_WARNING`) to suppress the public routable IP warning.
+Use `--summary-only` to print only counts, one recommended connection tuple, and interpretation (no table and no full list of combinations). With many candidates, default table output collapses to summary + examples + one-line total (use `--show-all` for the full list). Interpretation uses “Suggested default tuple” when rack/slot is not discriminated. In strict mode, status is shown as **setup-ok** (setup accepted, no query) or **query-confirmed** (setup + follow-up OK). Use `--repeat N` and `--interval-ms` to run the probe N times and see variance (e.g. “Setup accepted: 255–256 across 3 runs” and “Results varied across runs; endpoint may be rate-sensitive or unstable”). Use `--no-exposure-warning` (or env `S7COMMCTL_NO_EXPOSURE_WARNING`) to suppress the public routable IP warning. Probe JSON uses snake_case keys (`address`, `setup_accepted`, `confirmed_by_query`, etc.).
 
 - **valid-connect**: setup communication succeeded; follow-up query not attempted or failed.
 - **valid-query**: setup succeeded and a benign follow-up query (SZL, CPU state, etc.) also succeeded.
@@ -284,6 +284,8 @@ s7commctl write --ip 192.168.1.10 --area DB --db 1 --offset 0 --type int --value
 s7commctl list blocks --ip 192.168.1.10 --format table
 s7commctl list db --ip 192.168.1.10 --format json
 ```
+
+With `--format json`, list blocks and diagnostic print a structured error envelope (`status`, `error`, `target`) to stdout on failure.
 
 ### 10. Block metadata and upload
 
