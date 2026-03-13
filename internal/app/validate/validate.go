@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"otfabric/s7comm/model"
+	"github.com/otfabric/s7comm/model"
 )
 
 func ValidateIP(ip string) error {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"otfabric/s7comm/client"
-	"otfabric/s7comm/model"
+	"github.com/otfabric/s7comm/client"
+	"github.com/otfabric/s7comm/model"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/otfabric/s7commctl/internal/app/output"

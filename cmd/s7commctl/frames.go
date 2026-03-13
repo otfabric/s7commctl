@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"otfabric/s7comm/wire"
+	"github.com/otfabric/s7comm/wire"
 )
 
 type frameEvent struct {

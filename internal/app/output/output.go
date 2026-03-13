@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"otfabric/s7comm/model"
+	"github.com/otfabric/s7comm/model"
 )
 
 const (

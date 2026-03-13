@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"otfabric/s7comm/client"
+	"github.com/otfabric/s7comm/client"
 
 	"github.com/spf13/cobra"
 )
@@ -150,6 +150,70 @@ type FingerprintConfig struct {
 
 func DefaultFingerprintConfig() FingerprintConfig {
 	return FingerprintConfig{DeviceConfig: DefaultDeviceConfig(), Format: "table"}
+}
+
+// ProbeRackSlotConfig for probe rackslot command
+type ProbeRackSlotConfig struct {
+	IP          string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
+	Port        int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
+	RackMin     int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe"`
+	RackMax     int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe"`
+	SlotMin     int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe"`
+	SlotMax     int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe"`
+	Timeout     int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Per-attempt timeout in ms"`
+	Parallelism int    `flag:"parallelism" env:"S7COMMCTL_PROBE_PARALLELISM" desc:"Concurrent probes"`
+	DelayMS     int    `flag:"delay-ms" env:"S7COMMCTL_PROBE_DELAY_MS" desc:"Delay between attempts in ms"`
+	First       bool   `flag:"first" env:"S7COMMCTL_PROBE_FIRST" desc:"Stop after first valid rack/slot"`
+	LocalTSAP   string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
+	RemoteTSAP  string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
+	Format      string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
+}
+
+func DefaultProbeRackSlotConfig() ProbeRackSlotConfig {
+	return ProbeRackSlotConfig{
+		Port:        102,
+		RackMin:     0,
+		RackMax:     7,
+		SlotMin:     0,
+		SlotMax:     31,
+		Timeout:     2000,
+		Parallelism: 4,
+		DelayMS:     0,
+		Format:      "table",
+	}
+}
+
+// ToProbeRequest converts ProbeRackSlotConfig to client.RackSlotProbeRequest
+func (c ProbeRackSlotConfig) ToProbeRequest() client.RackSlotProbeRequest {
+	req := client.DefaultRackSlotProbeRequest(c.IP)
+	req.Port = c.Port
+	if req.Port == 0 {
+		req.Port = 102
+	}
+	req.RackMin = c.RackMin
+	req.RackMax = c.RackMax
+	req.SlotMin = c.SlotMin
+	req.SlotMax = c.SlotMax
+	req.Timeout = time.Duration(c.Timeout) * time.Millisecond
+	if req.Timeout <= 0 {
+		req.Timeout = 2 * time.Second
+	}
+	req.Parallelism = c.Parallelism
+	if req.Parallelism <= 0 {
+		req.Parallelism = 4
+	}
+	req.DelayMS = c.DelayMS
+	req.StopOnFirst = c.First
+	if c.LocalTSAP != "" && c.RemoteTSAP != "" {
+		if local, err1 := strconv.ParseUint(c.LocalTSAP, 0, 16); err1 == nil {
+			if remote, err2 := strconv.ParseUint(c.RemoteTSAP, 0, 16); err2 == nil {
+				l, r := uint16(local), uint16(remote)
+				req.LocalTSAP = &l
+				req.RemoteTSAP = &r
+			}
+		}
+	}
+	return req
 }
 
 // RegisterFlags registers flags based on struct tags
