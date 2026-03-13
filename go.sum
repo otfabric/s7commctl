@@ -3,6 +3,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/otfabric/s7comm v0.3.1 h1:vI6MEvp8GJTjX1IEcZgl8fXhKWn3BD7UGGqNJQvSQ/k=
 github.com/otfabric/s7comm v0.3.1/go.mod h1:eMqMDPcB+WwAEnfuDHy/FCb+epTGhIz4AK0sMdhUGaw=
+github.com/otfabric/s7comm v0.4.0 h1:MMRT/4WvDQ/IJrTxVp6dYKDjsGjQKkPQsdl4hXKShxw=
+github.com/otfabric/s7comm v0.4.0/go.mod h1:eMqMDPcB+WwAEnfuDHy/FCb+epTGhIz4AK0sMdhUGaw=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=

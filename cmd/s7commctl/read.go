@@ -57,16 +57,23 @@ func runRead(cmd *cobra.Command, args []string) error {
 		Size:     readConfig.Size,
 	}
 
-	data, err := c.ReadArea(cmd.Context(), addr)
+	result, err := c.ReadArea(cmd.Context(), addr)
 	if err != nil {
 		return fmt.Errorf("read failed: %w", err)
 	}
 
 	if readConfig.Quiet {
-		_, _ = fmt.Fprintln(os.Stdout, hex.EncodeToString(data))
+		if result != nil && len(result.Data) > 0 {
+			_, _ = fmt.Fprintln(os.Stdout, hex.EncodeToString(result.Data))
+		}
 		return nil
 	}
 
-	_, _ = fmt.Fprint(os.Stdout, output.FormatReadData(data, readConfig.Type, readConfig.Format))
+	_, _ = fmt.Fprint(os.Stdout, output.FormatReadResult(result, readConfig.Type, readConfig.Format, &output.ReadResultMeta{
+		Area: readConfig.Area, DBNumber: readConfig.DBNumber, Offset: readConfig.Offset, RequestedSize: readConfig.Size,
+	}))
+	if result != nil && result.Err() != nil && readConfig.StrictRead {
+		return result.Err()
+	}
 	return nil
 }

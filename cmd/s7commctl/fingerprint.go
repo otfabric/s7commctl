@@ -52,7 +52,7 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 
 	connInfo := c.ConnectionInfo()
 	protection, _ := c.GetProtectionLevel(cmd.Context())
-	_, readErr := c.ReadMerkers(cmd.Context(), 0, 1)
+	readRes, readErr := c.ReadMerkers(cmd.Context(), 0, 1)
 	_, uploadProbeErr := c.ListBlocks(cmd.Context(), model.BlockDB)
 
 	fp := &model.Fingerprint{
@@ -68,7 +68,7 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 		DetectedSlot:   connInfo.Slot,
 		AcceptedTSAP:   connInfo.RemoteTSAP,
 		Protection:     protection,
-		SupportsRead:   readErr == nil,
+		SupportsRead:   readErr == nil && readRes != nil && readRes.OK(),
 		SupportsWrite:  protection == model.ProtectionNone,
 		SupportsSZL:    true,
 		SupportsUpload: uploadProbeErr == nil,

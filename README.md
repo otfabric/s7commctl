@@ -127,6 +127,10 @@ s7commctl
 ├── fingerprint
 ├── probe
 │   └── rackslot
+├── scan
+│   └── read-ranges
+├── compare
+│   └── read
 ├── record
 ├── sniff
 ├── pcap-decode
@@ -193,13 +197,32 @@ s7commctl probe rackslot --ip 192.168.1.10 --rack-min 0 --rack-max 3 --slot-min 
 
 Exit code: 0 if at least one valid rack/slot found; 1 if none; &gt;1 for usage or runtime errors.
 
-### 3. Identify a PLC
+### 3. Scan readable ranges
+
+Discover which address ranges in an area return readable data (read-only):
+
+```bash
+s7commctl scan read-ranges --ip 192.168.1.10 --area I --start 0 --end 256 --probe-size 8
+s7commctl scan read-ranges --ip 192.168.1.10 --area DB --db 1 --start 0 --end 1024 --probe-size 32 --format json
+```
+
+Output: consolidated readable/empty/failed/inconclusive spans and optional per-probe table.
+
+### 4. Compare read across rack/slot candidates
+
+Run the same read on multiple rack/slot pairs and see if results are identical (rack/slot-insensitive):
+
+```bash
+s7commctl compare read --ip 192.168.1.10 --area DB --db 1 --offset 0 --size 32 --candidates 0/0,0/1,0/2
+```
+
+### 5. Identify a PLC
 
 ```bash
 s7commctl identify --ip 192.168.1.10 --rack 0 --slot 1 --format json
 ```
 
-### 4. Read memory
+### 6. Read memory
 
 Read 16 bytes from DB1 offset 0:
 
@@ -207,13 +230,15 @@ Read 16 bytes from DB1 offset 0:
 s7commctl read --ip 192.168.1.10 --area DB --db 1 --offset 0 --size 16 --format hex
 ```
 
+Output includes result status (success, short-read, empty-read, rejected, etc.), requested/returned length, and warnings. Use `--strict-read` to fail the command when the result is not success.
+
 Read merkers and decode as INT values:
 
 ```bash
 s7commctl read --ip 192.168.1.10 --area M --offset 100 --size 8 --type int
 ```
 
-### 5. Write memory safely
+### 7. Write memory safely
 
 Write requires explicit dangerous mode. Without force, a confirmation prompt is shown.
 
@@ -227,21 +252,21 @@ Non-interactive (automation):
 s7commctl write --ip 192.168.1.10 --area DB --db 1 --offset 0 --type int --value 123 --dangerous --force
 ```
 
-### 6. List blocks
+### 8. List blocks
 
 ```bash
 s7commctl list blocks --ip 192.168.1.10 --format table
 s7commctl list db --ip 192.168.1.10 --format json
 ```
 
-### 7. Block metadata and upload
+### 9. Block metadata and upload
 
 ```bash
 s7commctl block info --ip 192.168.1.10 --type DB --number 1 --format json
 s7commctl block upload --ip 192.168.1.10 --type DB --number 1 --format json
 ```
 
-### 8. Diagnostics
+### 10. Diagnostics
 
 ```bash
 s7commctl diagnostic --ip 192.168.1.10 --format table
@@ -253,13 +278,13 @@ Includes:
 - protection level
 - diagnostic buffer
 
-### 9. Fingerprint
+### 11. Fingerprint
 
 ```bash
 s7commctl fingerprint --ip 192.168.1.10 --format json
 ```
 
-### 10. Record periodic reads
+### 12. Record periodic reads
 
 Record DB snapshots every second to JSONL:
 
@@ -273,7 +298,7 @@ Hex-line output mode:
 s7commctl record --ip 192.168.1.10 --area M --offset 100 --size 4 --format hex --output samples.hex
 ```
 
-### 11. Passive sniff decode
+### 13. Passive sniff decode
 
 Listen for raw TPKT streams on a local TCP socket and decode frames:
 
@@ -281,7 +306,7 @@ Listen for raw TPKT streams on a local TCP socket and decode frames:
 s7commctl sniff --listen :15102 --format jsonl
 ```
 
-### 12. Offline pcap decode
+### 14. Offline pcap decode
 
 Decode S7-over-TCP frames from a pcap capture:
 
@@ -289,7 +314,7 @@ Decode S7-over-TCP frames from a pcap capture:
 s7commctl pcap-decode --file capture.pcap --port 102 --format text
 ```
 
-### 13. Replay server scaffold
+### 15. Replay server scaffold
 
 Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line):
 

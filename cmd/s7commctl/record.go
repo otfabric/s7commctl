@@ -95,11 +95,11 @@ func runRecord(cmd *cobra.Command, args []string) error {
 		case <-cmd.Context().Done():
 			return nil
 		case <-ticker.C:
-			data, err := c.ReadArea(cmd.Context(), addr)
+			result, err := c.ReadArea(cmd.Context(), addr)
 			if err != nil {
 				return fmt.Errorf("record read failed: %w", err)
 			}
-			if err := writeSample(f, samples, data); err != nil {
+			if err := writeSample(f, samples, result); err != nil {
 				return err
 			}
 			samples++
@@ -110,7 +110,13 @@ func runRecord(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func writeSample(f *os.File, sampleIdx int, data []byte) error {
+func writeSample(f *os.File, sampleIdx int, result *client.ReadResult) error {
+	data := []byte{}
+	status := ""
+	if result != nil {
+		data = result.Data
+		status = string(result.Status)
+	}
 	switch recConfig.Format {
 	case "hex":
 		_, err := fmt.Fprintln(f, hex.EncodeToString(data))
@@ -121,9 +127,17 @@ func writeSample(f *os.File, sampleIdx int, data []byte) error {
 		record := map[string]interface{}{
 			"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 			"sample":    sampleIdx,
+			"status":    status,
 			"raw_hex":   hex.EncodeToString(data),
 		}
-		if recConfig.Type != "raw" {
+		if result != nil {
+			record["requested_length"] = result.RequestedLength
+			record["returned_length"] = result.ReturnedLength
+			if result.Error != "" {
+				record["error"] = result.Error
+			}
+		}
+		if recConfig.Type != "raw" && len(data) > 0 {
 			record["decoded"] = outputValue(data, recConfig.Type)
 		}
 		line, _ := json.Marshal(record)

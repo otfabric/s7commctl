@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/otfabric/s7comm/client"
 	"github.com/otfabric/s7comm/model"
 )
 
@@ -147,6 +148,64 @@ func FormatHexDump(data []byte) string {
 		sb.WriteString("|\n")
 	}
 	return sb.String()
+}
+
+// ReadResultMeta is optional metadata for FormatReadResult (target/request context).
+type ReadResultMeta struct {
+	Area          string
+	DBNumber      int
+	Offset        int
+	RequestedSize int
+}
+
+// FormatReadResult formats a ReadResult with status, requested/returned length, warnings, and data.
+func FormatReadResult(result *client.ReadResult, dataType, format string, meta *ReadResultMeta) string {
+	if result == nil {
+		return "Result: (no result)\n"
+	}
+	data := result.Data
+	status := string(result.Status)
+	switch format {
+	case FormatJSON:
+		res := map[string]interface{}{
+			"status":           status,
+			"requested_length": result.RequestedLength,
+			"returned_length":  result.ReturnedLength,
+			"raw_hex":          hex.EncodeToString(data),
+			"warnings":         result.Warnings,
+		}
+		if result.Error != "" {
+			res["error"] = result.Error
+		}
+		out := map[string]interface{}{"result": res}
+		if meta != nil {
+			out["target"] = map[string]interface{}{"area": meta.Area, "db": meta.DBNumber}
+			out["request"] = map[string]interface{}{"offset": meta.Offset, "size": meta.RequestedSize}
+		}
+		d, _ := json.MarshalIndent(out, "", "  ")
+		return string(d)
+	default:
+		var sb strings.Builder
+		if meta != nil {
+			fmt.Fprintf(&sb, "Area: %s", meta.Area)
+			if meta.Area == "DB" {
+				fmt.Fprintf(&sb, " DB%d", meta.DBNumber)
+			}
+			fmt.Fprintf(&sb, "\nOffset: %d\nRequested: %d bytes\n\n", meta.Offset, meta.RequestedSize)
+		}
+		fmt.Fprintf(&sb, "Result: %s\nReturned: %d bytes\n", status, result.ReturnedLength)
+		for _, w := range result.Warnings {
+			fmt.Fprintf(&sb, "Warning: %s\n", w)
+		}
+		if result.Error != "" {
+			fmt.Fprintf(&sb, "Error: %s\n", result.Error)
+		}
+		if len(data) > 0 {
+			sb.WriteString("\n")
+			sb.WriteString(FormatReadData(data, dataType, format))
+		}
+		return sb.String()
+	}
 }
 
 func FormatReadData(data []byte, dataType, format string) string {
