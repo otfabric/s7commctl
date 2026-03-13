@@ -37,7 +37,7 @@ func runWrite(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(writeConfig.Rack, writeConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(writeConfig.IP, writeConfig.Quiet, "writes on exposed PLCs are high risk")
+	warnIfPublicTarget(writeConfig.IP, writeConfig.Quiet, "writes on exposed PLCs are high risk", writeConfig.NoExposureWarning)
 
 	if !writeConfig.Dangerous {
 		return fmt.Errorf("write operations require --dangerous flag")

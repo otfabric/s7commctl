@@ -52,7 +52,7 @@ func runBlockInfo(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(blockInfoConfig.Rack, blockInfoConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(blockInfoConfig.IP, blockInfoConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(blockInfoConfig.IP, blockInfoConfig.Quiet, "verify authorization and network exposure", blockInfoConfig.NoExposureWarning)
 	if blockInfoConfig.Number <= 0 {
 		return fmt.Errorf("--number must be > 0")
 	}
@@ -103,7 +103,7 @@ func runBlockUpload(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(blockUploadConfig.Rack, blockUploadConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(blockUploadConfig.IP, blockUploadConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(blockUploadConfig.IP, blockUploadConfig.Quiet, "verify authorization and network exposure", blockUploadConfig.NoExposureWarning)
 	if blockUploadConfig.Number <= 0 {
 		return fmt.Errorf("--number must be > 0")
 	}

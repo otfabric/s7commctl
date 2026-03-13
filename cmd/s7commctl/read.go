@@ -35,7 +35,7 @@ func runRead(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(readConfig.Rack, readConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(readConfig.IP, readConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(readConfig.IP, readConfig.Quiet, "verify authorization and network exposure", readConfig.NoExposureWarning)
 
 	area, err := validate.ValidateArea(readConfig.Area)
 	if err != nil {
@@ -70,6 +70,7 @@ func runRead(cmd *cobra.Command, args []string) error {
 	}
 
 	_, _ = fmt.Fprint(os.Stdout, output.FormatReadResult(result, readConfig.Type, readConfig.Format, &output.ReadResultMeta{
+		IP: readConfig.IP, Port: readConfig.Port, Rack: readConfig.Rack, Slot: readConfig.Slot,
 		Area: readConfig.Area, DBNumber: readConfig.DBNumber, Offset: readConfig.Offset, RequestedSize: readConfig.Size,
 	}))
 	if result != nil && result.Err() != nil && readConfig.StrictRead {

@@ -60,7 +60,7 @@ func runRecord(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(recConfig.Rack, recConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(recConfig.IP, recConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(recConfig.IP, recConfig.Quiet, "verify authorization and network exposure", recConfig.NoExposureWarning)
 	if recConfig.Size <= 0 {
 		return fmt.Errorf("size must be > 0")
 	}

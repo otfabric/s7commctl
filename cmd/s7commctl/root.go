@@ -17,6 +17,9 @@ var rootCmd = &cobra.Command{
 	Use:   "s7commctl",
 	Short: "Siemens S7 protocol communication tool",
 	Long:  `s7commctl is a professional tool for communicating with Siemens S7 PLCs using the S7comm protocol over ISO-on-TCP (RFC1006).`,
+	// Do not print usage on runtime/execution failures (e.g. short-read, EOF, timeout).
+	// Usage is only appropriate for invalid flags or missing required args.
+	SilenceUsage: true,
 }
 
 var versionCmd = &cobra.Command{

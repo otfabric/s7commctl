@@ -33,7 +33,7 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(diagnosticConfig.Rack, diagnosticConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(diagnosticConfig.IP, diagnosticConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(diagnosticConfig.IP, diagnosticConfig.Quiet, "verify authorization and network exposure", diagnosticConfig.NoExposureWarning)
 
 	opts := diagnosticConfig.ToClientOptions()
 	c := client.New(diagnosticConfig.IP, opts...)

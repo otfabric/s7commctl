@@ -38,8 +38,7 @@ Based on REQUIREMENTS.md, current status is:
 	- Advanced commands: sniff, pcap-decode, replay scaffold, periodic record
 - Partial
 	- Discovery CPU type extraction is not guaranteed on every target/model
-- Pending
-	- MCAP output for record command (current outputs: jsonl, hex)
+
 
 Protocol stack:
 
@@ -131,12 +130,26 @@ s7commctl
 │   └── read-ranges
 ├── compare
 │   └── read
+├── profile
 ├── record
 ├── sniff
 ├── pcap-decode
 ├── replay
 └── version
 ```
+
+### Exit codes
+
+Commands use the following exit code conventions (suitable for scripting):
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Target/operation non-success (e.g. probe found no valid rack/slot, read returned short-read with `--strict-read`, list/diagnostic failed) |
+| 2 | Usage or validation error (invalid flags, missing required args, malformed input) |
+| 3 | Connection or runtime failure (TCP connect failed, timeout, protocol error) |
+
+Note: Cobra is configured so that usage/help is not printed on runtime failures (only on validation errors).
 
 ## Common examples
 
@@ -192,6 +205,8 @@ Custom rack/slot range and JSON output:
 s7commctl probe rackslot --ip 192.168.1.10 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 7 --format json
 ```
 
+Use `--summary-only` to print only the summary and interpretation (no table or examples). Use `--no-exposure-warning` (or env `S7COMMCTL_NO_EXPOSURE_WARNING`) to suppress the public routable IP warning.
+
 - **valid-connect**: setup communication succeeded; follow-up query not attempted or failed.
 - **valid-query**: setup succeeded and a benign follow-up query (SZL, CPU state, etc.) also succeeded.
 
@@ -216,13 +231,24 @@ Run the same read on multiple rack/slot pairs and see if results are identical (
 s7commctl compare read --ip 192.168.1.10 --area DB --db 1 --offset 0 --size 32 --candidates 0/0,0/1,0/2
 ```
 
-### 5. Identify a PLC
+Table output includes a **SameAsBaseline** column (baseline/yes/no). Use `--repeat` and `--interval-ms` for multiple runs when data may change (e.g. Q area).
+
+### 5. Profile (capabilities summary)
+
+Summarize setup support, rack/slot, identify, and block list in one run:
+
+```bash
+s7commctl profile --ip 192.168.1.10
+s7commctl profile --ip 192.168.1.10 --format json
+```
+
+### 6. Identify a PLC
 
 ```bash
 s7commctl identify --ip 192.168.1.10 --rack 0 --slot 1 --format json
 ```
 
-### 6. Read memory
+### 7. Read memory
 
 Read 16 bytes from DB1 offset 0:
 
@@ -238,7 +264,7 @@ Read merkers and decode as INT values:
 s7commctl read --ip 192.168.1.10 --area M --offset 100 --size 8 --type int
 ```
 
-### 7. Write memory safely
+### 8. Write memory safely
 
 Write requires explicit dangerous mode. Without force, a confirmation prompt is shown.
 
@@ -252,21 +278,21 @@ Non-interactive (automation):
 s7commctl write --ip 192.168.1.10 --area DB --db 1 --offset 0 --type int --value 123 --dangerous --force
 ```
 
-### 8. List blocks
+### 9. List blocks
 
 ```bash
 s7commctl list blocks --ip 192.168.1.10 --format table
 s7commctl list db --ip 192.168.1.10 --format json
 ```
 
-### 9. Block metadata and upload
+### 10. Block metadata and upload
 
 ```bash
 s7commctl block info --ip 192.168.1.10 --type DB --number 1 --format json
 s7commctl block upload --ip 192.168.1.10 --type DB --number 1 --format json
 ```
 
-### 10. Diagnostics
+### 11. Diagnostics
 
 ```bash
 s7commctl diagnostic --ip 192.168.1.10 --format table
@@ -278,13 +304,13 @@ Includes:
 - protection level
 - diagnostic buffer
 
-### 11. Fingerprint
+### 12. Fingerprint
 
 ```bash
 s7commctl fingerprint --ip 192.168.1.10 --format json
 ```
 
-### 12. Record periodic reads
+### 13. Record periodic reads
 
 Record DB snapshots every second to JSONL:
 
@@ -298,7 +324,7 @@ Hex-line output mode:
 s7commctl record --ip 192.168.1.10 --area M --offset 100 --size 4 --format hex --output samples.hex
 ```
 
-### 13. Passive sniff decode
+### 14. Passive sniff decode
 
 Listen for raw TPKT streams on a local TCP socket and decode frames:
 
@@ -306,7 +332,7 @@ Listen for raw TPKT streams on a local TCP socket and decode frames:
 s7commctl sniff --listen :15102 --format jsonl
 ```
 
-### 14. Offline pcap decode
+### 15. Offline pcap decode
 
 Decode S7-over-TCP frames from a pcap capture:
 
@@ -314,7 +340,7 @@ Decode S7-over-TCP frames from a pcap capture:
 s7commctl pcap-decode --file capture.pcap --port 102 --format text
 ```
 
-### 15. Replay server scaffold
+### 16. Replay server scaffold
 
 Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line):
 
@@ -382,7 +408,6 @@ GitHub Actions workflow is provided at `.github/workflows/ci.yml` and runs:
 - Some PLC families expose different SZL field layouts; identify/fingerprint values can vary by model/firmware.
 - Block upload behavior is dependent on PLC capabilities and protection levels.
 - Replay is a scaffold framework for deterministic test workflows and is not a full PLC simulator.
-- MCAP serializer integration remains pending.
 
 ## License
 

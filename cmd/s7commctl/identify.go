@@ -33,7 +33,7 @@ func runIdentify(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(identifyConfig.Rack, identifyConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(identifyConfig.IP, identifyConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(identifyConfig.IP, identifyConfig.Quiet, "verify authorization and network exposure", identifyConfig.NoExposureWarning)
 
 	opts := identifyConfig.ToClientOptions()
 	c := client.New(identifyConfig.IP, opts...)

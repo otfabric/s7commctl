@@ -34,7 +34,7 @@ func runBlocks(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(blocksConfig.Rack, blocksConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(blocksConfig.IP, blocksConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(blocksConfig.IP, blocksConfig.Quiet, "verify authorization and network exposure", blocksConfig.NoExposureWarning)
 
 	opts := blocksConfig.ToClientOptions()
 	c := client.New(blocksConfig.IP, opts...)

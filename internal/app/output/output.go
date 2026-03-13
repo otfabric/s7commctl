@@ -24,25 +24,62 @@ func PrintJSON(v interface{}) {
 }
 
 func FormatDeviceInfo(info *model.DeviceInfo, format string) string {
+	if info == nil {
+		return ""
+	}
 	switch format {
 	case FormatJSON:
-		data, _ := json.MarshalIndent(info, "", "  ")
+		// JSON: use null for unavailable/empty fields (REQUIREMENTS #18)
+		m := map[string]interface{}{
+			"order_number":  strOrNull(info.OrderNumber),
+			"serial_number": strOrNull(info.SerialNumber),
+			"module_name":   strOrNull(info.ModuleName),
+			"cpu_type":      strOrNull(info.CPUType),
+			"fw_version":    strOrNull(info.FWVersion),
+		}
+		data, _ := json.MarshalIndent(m, "", "  ")
 		return string(data)
 	case FormatTable:
 		var sb strings.Builder
 		sb.WriteString("┌─────────────────────────────────────────────────┐\n")
 		sb.WriteString("│               S7 Device Information             │\n")
 		sb.WriteString("├─────────────────┬───────────────────────────────┤\n")
-		writeRow(&sb, "Order Number", info.OrderNumber)
-		writeRow(&sb, "Serial Number", info.SerialNumber)
-		writeRow(&sb, "Module Name", info.ModuleName)
-		writeRow(&sb, "CPU Type", info.CPUType)
-		writeRow(&sb, "FW Version", info.FWVersion)
+		writeRowNA(&sb, "Order Number", info.OrderNumber)
+		writeRowNA(&sb, "Serial Number", info.SerialNumber)
+		writeRowNA(&sb, "Module Name", info.ModuleName)
+		writeRowNA(&sb, "CPU Type", info.CPUType)
+		writeRowNA(&sb, "FW Version", info.FWVersion)
 		sb.WriteString("└─────────────────┴───────────────────────────────┘\n")
 		return sb.String()
 	default:
-		return fmt.Sprintf("Order: %s, Module: %s\n", info.OrderNumber, info.ModuleName)
+		order, module := info.OrderNumber, info.ModuleName
+		if order == "" {
+			order = "N/A"
+		}
+		if module == "" {
+			module = "N/A"
+		}
+		return fmt.Sprintf("Order: %s, Module: %s\n", order, module)
 	}
+}
+
+// strOrNull returns nil for empty s so JSON marshals as null.
+func strOrNull(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// writeRowNA uses "N/A" for empty values (identify plain/table).
+func writeRowNA(sb *strings.Builder, key, value string) {
+	if value == "" {
+		value = "N/A"
+	}
+	if len(value) > 29 {
+		value = value[:26] + "..."
+	}
+	_, _ = fmt.Fprintf(sb, "│ %-15s │ %-29s │\n", key, value)
 }
 
 func writeRow(sb *strings.Builder, key, value string) {
@@ -152,6 +189,10 @@ func FormatHexDump(data []byte) string {
 
 // ReadResultMeta is optional metadata for FormatReadResult (target/request context).
 type ReadResultMeta struct {
+	IP            string
+	Port          int
+	Rack          int
+	Slot          int
 	Area          string
 	DBNumber      int
 	Offset        int
@@ -167,8 +208,13 @@ func FormatReadResult(result *client.ReadResult, dataType, format string, meta *
 	status := string(result.Status)
 	switch format {
 	case FormatJSON:
+		statusDetail := status
+		if result.Error != "" {
+			statusDetail = status + " — " + result.Error
+		}
 		res := map[string]interface{}{
 			"status":           status,
+			"status_detail":    statusDetail,
 			"requested_length": result.RequestedLength,
 			"returned_length":  result.ReturnedLength,
 			"raw_hex":          hex.EncodeToString(data),
@@ -179,13 +225,28 @@ func FormatReadResult(result *client.ReadResult, dataType, format string, meta *
 		}
 		out := map[string]interface{}{"result": res}
 		if meta != nil {
-			out["target"] = map[string]interface{}{"area": meta.Area, "db": meta.DBNumber}
+			target := map[string]interface{}{
+				"ip":   meta.IP,
+				"port": meta.Port,
+				"rack": meta.Rack,
+				"slot": meta.Slot,
+				"area": meta.Area,
+			}
+			if strings.ToUpper(meta.Area) == "DB" {
+				target["db"] = meta.DBNumber
+			}
+			out["target"] = target
 			out["request"] = map[string]interface{}{"offset": meta.Offset, "size": meta.RequestedSize}
 		}
 		d, _ := json.MarshalIndent(out, "", "  ")
 		return string(d)
 	default:
 		var sb strings.Builder
+		// One-line status summary first (REQUIREMENTS: helps humans and pasted logs)
+		if meta != nil {
+			fmt.Fprintf(&sb, "status=%s requested=%d returned=%d area=%s offset=%d\n\n",
+				status, result.RequestedLength, result.ReturnedLength, meta.Area, meta.Offset)
+		}
 		if meta != nil {
 			fmt.Fprintf(&sb, "Area: %s", meta.Area)
 			if meta.Area == "DB" {

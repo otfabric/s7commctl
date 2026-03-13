@@ -35,7 +35,7 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(fingerprintConfig.Rack, fingerprintConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(fingerprintConfig.IP, fingerprintConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(fingerprintConfig.IP, fingerprintConfig.Quiet, "verify authorization and network exposure", fingerprintConfig.NoExposureWarning)
 
 	opts := fingerprintConfig.ToClientOptions()
 	c := client.New(fingerprintConfig.IP, opts...)

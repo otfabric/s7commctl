@@ -15,17 +15,18 @@ import (
 
 // DeviceConfig contains common connection parameters
 type DeviceConfig struct {
-	IP          string `flag:"ip" env:"S7COMMCTL_IP" desc:"S7 device IP address"`
-	Port        int    `flag:"port" env:"S7COMMCTL_PORT" desc:"S7 port (default 102)"`
-	Rack        int    `flag:"rack" env:"S7COMMCTL_RACK" desc:"PLC rack number"`
-	Slot        int    `flag:"slot" env:"S7COMMCTL_SLOT" desc:"PLC slot number"`
-	AutoRack    bool   `flag:"auto-rack-slot" env:"S7COMMCTL_AUTO_RACK_SLOT" desc:"Auto-detect rack/slot"`
-	BruteRack   bool   `flag:"brute-rack-slot" env:"S7COMMCTL_BRUTE_RACK_SLOT" desc:"Brute rack 0-3 and slot 0-5"`
-	LocalTSAP   string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
-	RemoteTSAP  string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
-	Timeout     int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds"`
-	RateLimitMS int    `flag:"rate-limit-ms" env:"S7COMMCTL_RATE_LIMIT_MS" desc:"Minimum delay between protocol operations in ms"`
-	Quiet       bool   `flag:"quiet" env:"S7COMMCTL_QUIET" desc:"Minimal output"`
+	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"S7 device IP address"`
+	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"S7 port (default 102)"`
+	Rack              int    `flag:"rack" env:"S7COMMCTL_RACK" desc:"PLC rack number"`
+	Slot              int    `flag:"slot" env:"S7COMMCTL_SLOT" desc:"PLC slot number"`
+	AutoRack          bool   `flag:"auto-rack-slot" env:"S7COMMCTL_AUTO_RACK_SLOT" desc:"Auto-detect rack/slot"`
+	BruteRack         bool   `flag:"brute-rack-slot" env:"S7COMMCTL_BRUTE_RACK_SLOT" desc:"Brute rack 0-3 and slot 0-5"`
+	LocalTSAP         string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
+	RemoteTSAP        string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
+	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds"`
+	RateLimitMS       int    `flag:"rate-limit-ms" env:"S7COMMCTL_RATE_LIMIT_MS" desc:"Minimum delay between protocol operations in ms"`
+	Quiet             bool   `flag:"quiet" env:"S7COMMCTL_QUIET" desc:"Minimal output"`
+	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning (e.g. authorized environments)"`
 }
 
 // ToClientOptions converts CLI config to library options
@@ -155,25 +156,27 @@ func DefaultFingerprintConfig() FingerprintConfig {
 
 // ProbeRackSlotConfig for probe rackslot command
 type ProbeRackSlotConfig struct {
-	IP             string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
-	Port           int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
-	RackMin        int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe"`
-	RackMax        int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe"`
-	SlotMin        int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe"`
-	SlotMax        int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe"`
-	Timeout        int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Per-attempt timeout in ms"`
-	Parallelism    int    `flag:"parallelism" env:"S7COMMCTL_PROBE_PARALLELISM" desc:"Concurrent probes"`
-	DelayMS        int    `flag:"delay-ms" env:"S7COMMCTL_PROBE_DELAY_MS" desc:"Delay between attempts in ms"`
-	First          bool   `flag:"first" env:"S7COMMCTL_PROBE_FIRST" desc:"Stop after first valid rack/slot"`
-	Strict         bool   `flag:"strict" env:"S7COMMCTL_PROBE_STRICT" desc:"Only count valid-query as valid (confirm with follow-up)"`
-	Confirm        string `flag:"confirm" env:"S7COMMCTL_PROBE_CONFIRM" desc:"Confirmation strategy: szl, cpu-state, any (default with --strict: any)"`
-	Retries        int    `flag:"retries" env:"S7COMMCTL_PROBE_RETRIES" desc:"Retry count per candidate for inconclusive results"`
-	RetryDelayMS   int    `flag:"retry-delay-ms" env:"S7COMMCTL_PROBE_RETRY_DELAY_MS" desc:"Delay between retries in ms"`
-	FirstConfirmed bool   `flag:"first-confirmed" env:"S7COMMCTL_PROBE_FIRST_CONFIRMED" desc:"Stop after first valid-query (strict mode)"`
-	ShowAll        bool   `flag:"show-all" env:"S7COMMCTL_PROBE_SHOW_ALL" desc:"Show all candidates in table including non-valid"`
-	LocalTSAP      string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
-	RemoteTSAP     string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
-	Format         string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
+	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
+	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
+	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
+	RackMin           int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe"`
+	RackMax           int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe"`
+	SlotMin           int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe"`
+	SlotMax           int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe"`
+	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Per-attempt timeout in ms"`
+	Parallelism       int    `flag:"parallelism" env:"S7COMMCTL_PROBE_PARALLELISM" desc:"Concurrent probes"`
+	DelayMS           int    `flag:"delay-ms" env:"S7COMMCTL_PROBE_DELAY_MS" desc:"Delay between attempts in ms"`
+	First             bool   `flag:"first" env:"S7COMMCTL_PROBE_FIRST" desc:"Stop after first valid rack/slot"`
+	Strict            bool   `flag:"strict" env:"S7COMMCTL_PROBE_STRICT" desc:"Only count valid-query as valid (confirm with follow-up)"`
+	Confirm           string `flag:"confirm" env:"S7COMMCTL_PROBE_CONFIRM" desc:"Confirmation strategy: szl, cpu-state, any (default with --strict: any)"`
+	Retries           int    `flag:"retries" env:"S7COMMCTL_PROBE_RETRIES" desc:"Retry count per candidate for inconclusive results"`
+	RetryDelayMS      int    `flag:"retry-delay-ms" env:"S7COMMCTL_PROBE_RETRY_DELAY_MS" desc:"Delay between retries in ms"`
+	FirstConfirmed    bool   `flag:"first-confirmed" env:"S7COMMCTL_PROBE_FIRST_CONFIRMED" desc:"Stop after first valid-query (strict mode)"`
+	ShowAll           bool   `flag:"show-all" env:"S7COMMCTL_PROBE_SHOW_ALL" desc:"Show all candidates in table including non-valid"`
+	SummaryOnly       bool   `flag:"summary-only" env:"S7COMMCTL_PROBE_SUMMARY_ONLY" desc:"Print only summary and interpretation (no table or examples)"`
+	LocalTSAP         string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
+	RemoteTSAP        string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
+	Format            string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
 }
 
 func DefaultProbeRackSlotConfig() ProbeRackSlotConfig {
@@ -243,6 +246,7 @@ type ScanReadRangesConfig struct {
 	Retries      int    `flag:"retries" env:"S7COMMCTL_SCAN_RETRIES" desc:"Retries per probe"`
 	RetryDelayMS int    `flag:"retry-delay-ms" env:"S7COMMCTL_SCAN_RETRY_DELAY_MS" desc:"Delay between retries in ms"`
 	Repeat       int    `flag:"repeat" env:"S7COMMCTL_SCAN_REPEAT" desc:"Repeat each probe N times for stability"`
+	SummaryOnly  bool   `flag:"summary-only" env:"S7COMMCTL_SCAN_SUMMARY_ONLY" desc:"Print only span summary (no per-probe table)"`
 	Format       string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, spans"`
 }
 
@@ -261,19 +265,35 @@ func DefaultScanReadRangesConfig() ScanReadRangesConfig {
 
 // CompareReadConfig for compare read command
 type CompareReadConfig struct {
-	IP         string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP"`
-	Port       int    `flag:"port" env:"S7COMMCTL_PORT" desc:"Port (default 102)"`
-	Candidates string `flag:"candidates" env:"S7COMMCTL_COMPARE_CANDIDATES" desc:"Rack/slot pairs: 0/0,0/1,0/2"`
-	Area       string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area"`
-	DBNumber   int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
-	Offset     int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
-	Size       int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes"`
-	Timeout    int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout per candidate in ms"`
-	Format     string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table"`
+	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP"`
+	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
+	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"Port (default 102)"`
+	Candidates        string `flag:"candidates" env:"S7COMMCTL_COMPARE_CANDIDATES" desc:"Rack/slot pairs: 0/0,0/1,0/2"`
+	Area              string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area"`
+	DBNumber          int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
+	Offset            int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
+	Size              int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes"`
+	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout per candidate in ms"`
+	Repeat            int    `flag:"repeat" env:"S7COMMCTL_COMPARE_REPEAT" desc:"Repeat compare N times (for dynamic data)"`
+	IntervalMS        int    `flag:"interval-ms" env:"S7COMMCTL_COMPARE_INTERVAL_MS" desc:"Delay between repeat runs in ms"`
+	Format            string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table"`
 }
 
 func DefaultCompareReadConfig() CompareReadConfig {
 	return CompareReadConfig{Port: 102, Timeout: 5000, Format: "table"}
+}
+
+// ProfileConfig for profile/capabilities command
+type ProfileConfig struct {
+	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
+	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
+	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds"`
+	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
+	Format            string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: text, json"`
+}
+
+func DefaultProfileConfig() ProfileConfig {
+	return ProfileConfig{Port: 102, Timeout: 5000, Format: "text"}
 }
 
 func parseConfirmKind(s string, strict bool) client.ConfirmationKind {

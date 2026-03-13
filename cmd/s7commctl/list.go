@@ -1,8 +1,10 @@
 package s7commctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/otfabric/s7comm/client"
 	"github.com/otfabric/s7comm/model"
@@ -60,11 +62,12 @@ func runListBlocks(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateRackSlot(listBlocksConfig.Rack, listBlocksConfig.Slot); err != nil {
 		return err
 	}
-	warnIfPublicTarget(listBlocksConfig.IP, listBlocksConfig.Quiet, "verify authorization and network exposure")
+	warnIfPublicTarget(listBlocksConfig.IP, listBlocksConfig.Quiet, "verify authorization and network exposure", listBlocksConfig.NoExposureWarning)
 
 	opts := listBlocksConfig.ToClientOptions()
 	c := client.New(listBlocksConfig.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
+		listBlocksFailJSON(listBlocksConfig.Format, fmt.Sprintf("connect failed: %v", err))
 		return fmt.Errorf("connect failed: %w", err)
 	}
 	defer func() { _ = c.Close() }()
@@ -81,11 +84,26 @@ func runListBlocks(cmd *cobra.Command, args []string) error {
 		blocks, err = c.ListAllBlocks(cmd.Context())
 	}
 	if err != nil {
+		listBlocksFailJSON(listBlocksConfig.Format, fmt.Sprintf("list blocks failed: %v", err))
 		return fmt.Errorf("list blocks failed: %w", err)
+	}
+	if blocks == nil {
+		blocks = []model.BlockInfo{}
 	}
 
 	_, _ = fmt.Fprint(os.Stdout, output.FormatBlocks(blocks, listBlocksConfig.Format))
 	return nil
+}
+
+// listBlocksFailJSON prints structured error JSON and exits when format is json (REQUIREMENTS #17).
+func listBlocksFailJSON(format, errMsg string) {
+	if strings.ToLower(format) != output.FormatJSON {
+		return
+	}
+	out := map[string]string{"status": "error", "error": errMsg}
+	data, _ := json.Marshal(out)
+	_, _ = fmt.Fprintln(os.Stdout, string(data))
+	os.Exit(1)
 }
 
 func runListDB(cmd *cobra.Command, args []string) error {
