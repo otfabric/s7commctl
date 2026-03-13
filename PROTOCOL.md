@@ -17,7 +17,6 @@ Protocol layers:
 
 In other words:
 
-```text
 Application data   -> S7comm
 Transport wrapper  -> COTP
 RFC1006 framing    -> TPKT
