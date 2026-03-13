@@ -368,27 +368,27 @@ func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, result
 	candidates := make([]map[string]interface{}, 0, len(res.Candidates))
 	for _, c := range res.Candidates {
 		candidates = append(candidates, map[string]interface{}{
-			"rack":          c.Rack,
-			"slot":          c.Slot,
-			"stage":         string(c.Stage),
-			"status":        probeStatusDisplay(string(c.Status), strict),
-			"pdu_size":      c.PDUSize,
-			"confirmed_by":  string(c.ConfirmedBy),
-			"confidence":    string(c.Confidence),
-			"error":         c.Error,
+			"rack":         c.Rack,
+			"slot":         c.Slot,
+			"stage":        string(c.Stage),
+			"status":       probeStatusDisplay(string(c.Status), strict),
+			"pdu_size":     c.PDUSize,
+			"confirmed_by": string(c.ConfirmedBy),
+			"confidence":   string(c.Confidence),
+			"error":        c.Error,
 		})
 	}
 	valid := make([]map[string]interface{}, 0, len(res.Valid))
 	for _, c := range res.Valid {
 		valid = append(valid, map[string]interface{}{
-			"rack":          c.Rack,
-			"slot":          c.Slot,
-			"stage":         string(c.Stage),
-			"status":        probeStatusDisplay(string(c.Status), strict),
-			"pdu_size":      c.PDUSize,
-			"confirmed_by":  string(c.ConfirmedBy),
-			"confidence":    string(c.Confidence),
-			"error":         c.Error,
+			"rack":         c.Rack,
+			"slot":         c.Slot,
+			"stage":        string(c.Stage),
+			"status":       probeStatusDisplay(string(c.Status), strict),
+			"pdu_size":     c.PDUSize,
+			"confirmed_by": string(c.ConfirmedBy),
+			"confidence":   string(c.Confidence),
+			"error":        c.Error,
 		})
 	}
 	out := map[string]interface{}{

@@ -233,17 +233,17 @@ func printScanReadRangesJSON(res *client.RangeProbeResult) {
 		inconclusive = append(inconclusive, spanToMap(s))
 	}
 	summary := map[string]interface{}{
-		"readable_count":    len(res.Summary.ReadableSpans),
-		"empty_count":      len(res.Summary.EmptySpans),
-		"partial_count":    len(partialSpans),
-		"failed_count":     len(failedSpans),
+		"readable_count":     len(res.Summary.ReadableSpans),
+		"empty_count":        len(res.Summary.EmptySpans),
+		"partial_count":      len(partialSpans),
+		"failed_count":       len(failedSpans),
 		"inconclusive_count": len(res.Summary.InconclusiveSpans),
 	}
 	spans := map[string]interface{}{
-		"readable":    readable,
-		"empty":       empty,
-		"partial":     partial,
-		"failed":      failed,
+		"readable":     readable,
+		"empty":        empty,
+		"partial":      partial,
+		"failed":       failed,
 		"inconclusive": inconclusive,
 	}
 	out := map[string]interface{}{

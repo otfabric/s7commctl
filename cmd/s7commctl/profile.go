@@ -153,13 +153,13 @@ func yesNo(b bool) string {
 
 func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, hasRecommended bool, recommendedRack, recommendedSlot int, identifyInfo *model.DeviceInfo, identifyOK, identifyFieldsFound bool, blockCount int, blocksOK bool) {
 	out := map[string]interface{}{
-		"target":                 ip,
-		"port":                   port,
-		"setup_support":          setupSupport,
-		"rack_slot_confirmed":    confirmedByQuery,
-		"identify_transport_ok":  identifyOK,
-		"identify_fields_found":  identifyFieldsFound,
-		"block_list_support":     blocksOK,
+		"target":                ip,
+		"port":                  port,
+		"setup_support":         setupSupport,
+		"rack_slot_confirmed":   confirmedByQuery,
+		"identify_transport_ok": identifyOK,
+		"identify_fields_found": identifyFieldsFound,
+		"block_list_support":    blocksOK,
 	}
 	if hasRecommended {
 		out["recommended_rack"] = recommendedRack
