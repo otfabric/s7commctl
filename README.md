@@ -150,29 +150,46 @@ s7commctl discover --cidr 192.168.1.0/24 --rack-min 0 --rack-max 3 --slot-min 0 
 
 ### 2. Determine valid rack/slot values
 
-Use rack/slot probe against a single target to find which rack/slot combinations accept S7 setup (and optionally SZL):
+Probe a target for accepted rack/slot combinations (setup accepted = valid):
 
 ```bash
 s7commctl probe rackslot --ip 192.168.1.10 --format table
 ```
 
-Try a custom range:
+Strictly confirm combinations using a benign follow-up query (only `valid-query` counts as valid):
 
 ```bash
-s7commctl probe rackslot --ip 192.168.1.10 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 7
+s7commctl probe rackslot --ip 192.168.1.10 --strict
 ```
 
-Return only the first valid hit:
+Use a specific confirmation strategy:
 
 ```bash
-s7commctl probe rackslot --ip 192.168.1.10 --first
+s7commctl probe rackslot --ip 192.168.1.10 --confirm szl
+s7commctl probe rackslot --ip 192.168.1.10 --confirm cpu-state
+s7commctl probe rackslot --ip 192.168.1.10 --confirm any
 ```
 
-JSON output:
+Retry inconclusive candidates:
 
 ```bash
-s7commctl probe rackslot --ip 192.168.1.10 --format json
+s7commctl probe rackslot --ip 192.168.1.10 --strict --retries 3 --retry-delay-ms 200
 ```
+
+Stop on first confirmed valid (strict mode):
+
+```bash
+s7commctl probe rackslot --ip 192.168.1.10 --strict --first-confirmed
+```
+
+Custom rack/slot range and JSON output:
+
+```bash
+s7commctl probe rackslot --ip 192.168.1.10 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 7 --format json
+```
+
+- **valid-connect**: setup communication succeeded; follow-up query not attempted or failed.
+- **valid-query**: setup succeeded and a benign follow-up query (SZL, CPU state, etc.) also succeeded.
 
 Exit code: 0 if at least one valid rack/slot found; 1 if none; &gt;1 for usage or runtime errors.
 

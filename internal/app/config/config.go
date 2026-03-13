@@ -154,19 +154,25 @@ func DefaultFingerprintConfig() FingerprintConfig {
 
 // ProbeRackSlotConfig for probe rackslot command
 type ProbeRackSlotConfig struct {
-	IP          string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
-	Port        int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
-	RackMin     int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe"`
-	RackMax     int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe"`
-	SlotMin     int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe"`
-	SlotMax     int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe"`
-	Timeout     int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Per-attempt timeout in ms"`
-	Parallelism int    `flag:"parallelism" env:"S7COMMCTL_PROBE_PARALLELISM" desc:"Concurrent probes"`
-	DelayMS     int    `flag:"delay-ms" env:"S7COMMCTL_PROBE_DELAY_MS" desc:"Delay between attempts in ms"`
-	First       bool   `flag:"first" env:"S7COMMCTL_PROBE_FIRST" desc:"Stop after first valid rack/slot"`
-	LocalTSAP   string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
-	RemoteTSAP  string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
-	Format      string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
+	IP             string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
+	Port           int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
+	RackMin        int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe"`
+	RackMax        int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe"`
+	SlotMin        int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe"`
+	SlotMax        int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe"`
+	Timeout        int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Per-attempt timeout in ms"`
+	Parallelism    int    `flag:"parallelism" env:"S7COMMCTL_PROBE_PARALLELISM" desc:"Concurrent probes"`
+	DelayMS        int    `flag:"delay-ms" env:"S7COMMCTL_PROBE_DELAY_MS" desc:"Delay between attempts in ms"`
+	First          bool   `flag:"first" env:"S7COMMCTL_PROBE_FIRST" desc:"Stop after first valid rack/slot"`
+	Strict         bool   `flag:"strict" env:"S7COMMCTL_PROBE_STRICT" desc:"Only count valid-query as valid (confirm with follow-up)"`
+	Confirm        string `flag:"confirm" env:"S7COMMCTL_PROBE_CONFIRM" desc:"Confirmation strategy: szl, cpu-state, any (default with --strict: any)"`
+	Retries        int    `flag:"retries" env:"S7COMMCTL_PROBE_RETRIES" desc:"Retry count per candidate for inconclusive results"`
+	RetryDelayMS   int    `flag:"retry-delay-ms" env:"S7COMMCTL_PROBE_RETRY_DELAY_MS" desc:"Delay between retries in ms"`
+	FirstConfirmed bool   `flag:"first-confirmed" env:"S7COMMCTL_PROBE_FIRST_CONFIRMED" desc:"Stop after first valid-query (strict mode)"`
+	ShowAll        bool   `flag:"show-all" env:"S7COMMCTL_PROBE_SHOW_ALL" desc:"Show all candidates in table including non-valid"`
+	LocalTSAP      string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
+	RemoteTSAP     string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
+	Format         string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
 }
 
 func DefaultProbeRackSlotConfig() ProbeRackSlotConfig {
@@ -204,6 +210,14 @@ func (c ProbeRackSlotConfig) ToProbeRequest() client.RackSlotProbeRequest {
 	}
 	req.DelayMS = c.DelayMS
 	req.StopOnFirst = c.First
+	req.Strict = c.Strict
+	req.Confirm = parseConfirmKind(c.Confirm, c.Strict)
+	req.Retries = c.Retries
+	if req.Retries < 0 {
+		req.Retries = 0
+	}
+	req.RetryDelay = time.Duration(c.RetryDelayMS) * time.Millisecond
+	req.StopOnFirstConfirmed = c.FirstConfirmed
 	if c.LocalTSAP != "" && c.RemoteTSAP != "" {
 		if local, err1 := strconv.ParseUint(c.LocalTSAP, 0, 16); err1 == nil {
 			if remote, err2 := strconv.ParseUint(c.RemoteTSAP, 0, 16); err2 == nil {
@@ -214,6 +228,27 @@ func (c ProbeRackSlotConfig) ToProbeRequest() client.RackSlotProbeRequest {
 		}
 	}
 	return req
+}
+
+func parseConfirmKind(s string, strict bool) client.ConfirmationKind {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "szl":
+		return client.ConfirmSZL
+	case "cpu-state":
+		return client.ConfirmCPUState
+	case "any":
+		return client.ConfirmAny
+	case "none", "":
+		if strict {
+			return client.ConfirmAny
+		}
+		return client.ConfirmNone
+	default:
+		if strict {
+			return client.ConfirmAny
+		}
+		return client.ConfirmNone
+	}
 }
 
 // RegisterFlags registers flags based on struct tags

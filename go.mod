@@ -3,7 +3,7 @@ module github.com/otfabric/s7commctl
 go 1.25.0
 
 require (
-	github.com/otfabric/s7comm v0.2.2
+	github.com/otfabric/s7comm v0.3.1
 	github.com/spf13/cobra v1.10.2
 )
 
