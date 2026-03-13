@@ -1,0 +1,47 @@
+name: CI
+run-name: "CI (${{ github.event_name }}) on ${{ github.ref_name }} by @${{ github.actor }}"
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Fmt, Lint, Vet, Test & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GONOSUMDB: github.com/otfabric/s7comm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies (CLI)
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Run quality gate
+        run: make quality
+
+      - name: Build binary
+        run: make build-nocheck

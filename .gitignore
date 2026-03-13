@@ -1,0 +1,7 @@
+# Ignore Visual Studio Code settings folder
+.vscode/
+
+# Ignore build output directories and release files
+bin/
+release/
+/s7commctl

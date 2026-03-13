@@ -1,0 +1,133 @@
+name: Build and Release s7commctl
+run-name: Build and Release of s7commctl on '${{ github.ref_name }}' with bump '${{ inputs.bump }}'
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump strategy (none, patch, minor, major)"
+        required: true
+        default: "none"
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+env:
+  GONOSUMDB: github.com/otfabric/s7comm
+
+jobs:
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          VERSION=$(cat version.txt)
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          case "${{ inputs.bump }}" in
+            major)
+              major=$((major + 1)); minor=0; patch=0 ;;
+            minor)
+              minor=$((minor + 1)); patch=0 ;;
+            patch)
+              patch=$((patch + 1)) ;;
+            none)
+              ;;
+          esac
+          NEW_VERSION="$major.$minor.$patch"
+          echo "$NEW_VERSION" > version.txt
+          git add version.txt
+          if [[ "${{ inputs.bump }}" != "none" ]]; then
+            git commit -m "Bump version to $NEW_VERSION"
+            git push origin HEAD
+          fi
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Show version to build
+        run: echo "Final version to build: $(cat version.txt)"
+
+  build-native:
+    name: Build Native Binaries
+    needs: bump-version
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Build and package with Makefile
+        env:
+          VERSION: ${{ needs.bump-version.outputs.version }}
+        run: |
+          echo "${VERSION}" > version.txt
+          make release-all
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: s7commctl-${{ needs.bump-version.outputs.version }}
+          path: |
+            release/*.tar.gz
+            release/*.zip
+
+  create-github-release:
+    name: Create GitHub Release
+    needs:
+      - bump-version
+      - build-native
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: s7commctl-${{ needs.bump-version.outputs.version }}
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -lah artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.bump-version.outputs.version }}
+          name: v${{ needs.bump-version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.zip

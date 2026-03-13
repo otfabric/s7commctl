@@ -1,0 +1,226 @@
+// Package output provides CLI output formatters.
+package output
+
+import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"otfabric/s7comm/model"
+)
+
+const (
+	FormatJSON  = "json"
+	FormatTable = "table"
+	FormatText  = "text"
+	FormatHex   = "hex"
+)
+
+func PrintJSON(v interface{}) {
+	data, _ := json.MarshalIndent(v, "", "  ")
+	fmt.Println(string(data))
+}
+
+func FormatDeviceInfo(info *model.DeviceInfo, format string) string {
+	switch format {
+	case FormatJSON:
+		data, _ := json.MarshalIndent(info, "", "  ")
+		return string(data)
+	case FormatTable:
+		var sb strings.Builder
+		sb.WriteString("┌─────────────────────────────────────────────────┐\n")
+		sb.WriteString("│               S7 Device Information             │\n")
+		sb.WriteString("├─────────────────┬───────────────────────────────┤\n")
+		writeRow(&sb, "Order Number", info.OrderNumber)
+		writeRow(&sb, "Serial Number", info.SerialNumber)
+		writeRow(&sb, "Module Name", info.ModuleName)
+		writeRow(&sb, "CPU Type", info.CPUType)
+		writeRow(&sb, "FW Version", info.FWVersion)
+		sb.WriteString("└─────────────────┴───────────────────────────────┘\n")
+		return sb.String()
+	default:
+		return fmt.Sprintf("Order: %s, Module: %s\n", info.OrderNumber, info.ModuleName)
+	}
+}
+
+func writeRow(sb *strings.Builder, key, value string) {
+	if value == "" {
+		value = "-"
+	}
+	if len(value) > 29 {
+		value = value[:26] + "..."
+	}
+	_, _ = fmt.Fprintf(sb, "│ %-15s │ %-29s │\n", key, value)
+}
+
+func FormatBlocks(blocks []model.BlockInfo, format string) string {
+	switch format {
+	case FormatJSON:
+		data, _ := json.MarshalIndent(blocks, "", "  ")
+		return string(data)
+	case FormatTable:
+		var sb strings.Builder
+		sb.WriteString("┌──────┬────────┬──────────┬───────┐\n")
+		sb.WriteString("│ Type │ Number │ Language │ Flags │\n")
+		sb.WriteString("├──────┼────────┼──────────┼───────┤\n")
+		for _, b := range blocks {
+			_, _ = fmt.Fprintf(&sb, "│ %-4s │ %6d │ %-8s │ 0x%02X  │\n",
+				b.Type.String(), b.Number, b.Language.String(), b.Flags)
+		}
+		sb.WriteString("└──────┴────────┴──────────┴───────┘\n")
+		return sb.String()
+	default:
+		var sb strings.Builder
+		for _, b := range blocks {
+			_, _ = fmt.Fprintf(&sb, "%s%d\n", b.Type.String(), b.Number)
+		}
+		return sb.String()
+	}
+}
+
+func FormatFingerprint(fp *model.Fingerprint, format string) string {
+	switch format {
+	case FormatJSON:
+		data, _ := json.MarshalIndent(fp, "", "  ")
+		return string(data)
+	case FormatTable:
+		var sb strings.Builder
+		sb.WriteString("┌─────────────────────────────────────────────────┐\n")
+		sb.WriteString("│               S7 Device Fingerprint             │\n")
+		sb.WriteString("├─────────────────┬───────────────────────────────┤\n")
+		writeRow(&sb, "CPU Type", fp.CPUType)
+		writeRow(&sb, "Order Number", fp.OrderNumber)
+		writeRow(&sb, "Firmware", fp.FirmwareVer)
+		writeRow(&sb, "PDU Size", fmt.Sprintf("%d", fp.PDUSize))
+		writeRow(&sb, "Protection", fp.Protection.String())
+		sb.WriteString("└─────────────────┴───────────────────────────────┘\n")
+		return sb.String()
+	default:
+		return fmt.Sprintf("CPU: %s, PDU: %d\n", fp.CPUType, fp.PDUSize)
+	}
+}
+
+func FormatDiagBuffer(diag *model.DiagBuffer, format string) string {
+	switch format {
+	case FormatJSON:
+		data, _ := json.MarshalIndent(diag, "", "  ")
+		return string(data)
+	case FormatTable:
+		var sb strings.Builder
+		sb.WriteString("┌──────────┬───────┬──────────┐\n")
+		sb.WriteString("│ Event ID │ Class │ Priority │\n")
+		sb.WriteString("├──────────┼───────┼──────────┤\n")
+		for _, e := range diag.Entries {
+			_, _ = fmt.Fprintf(&sb, "│ 0x%04X   │ 0x%02X  │ %8d │\n", e.EventID, e.EventClass, e.Priority)
+		}
+		sb.WriteString("└──────────┴───────┴──────────┘\n")
+		return sb.String()
+	default:
+		return fmt.Sprintf("%d entries\n", diag.TotalCount)
+	}
+}
+
+func FormatHexDump(data []byte) string {
+	var sb strings.Builder
+	for i := 0; i < len(data); i += 16 {
+		_, _ = fmt.Fprintf(&sb, "%08X  ", i)
+		for j := 0; j < 16; j++ {
+			if i+j < len(data) {
+				_, _ = fmt.Fprintf(&sb, "%02X ", data[i+j])
+			} else {
+				sb.WriteString("   ")
+			}
+			if j == 7 {
+				sb.WriteString(" ")
+			}
+		}
+		sb.WriteString(" |")
+		for j := 0; j < 16 && i+j < len(data); j++ {
+			b := data[i+j]
+			if b >= 0x20 && b < 0x7f {
+				sb.WriteByte(b)
+			} else {
+				sb.WriteByte('.')
+			}
+		}
+		sb.WriteString("|\n")
+	}
+	return sb.String()
+}
+
+func FormatReadData(data []byte, dataType, format string) string {
+	// Interpret data based on type
+	var interpreted string
+	switch strings.ToLower(dataType) {
+	case "bool":
+		var vals []string
+		for i := 0; i < len(data)*8; i++ {
+			vals = append(vals, fmt.Sprintf("bit %d: %v", i, model.DecodeBool(data, i)))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "byte":
+		var vals []string
+		for i, b := range data {
+			vals = append(vals, fmt.Sprintf("[%d]: %d (0x%02X)", i, b, b))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "int":
+		var vals []string
+		for i := 0; i+2 <= len(data); i += 2 {
+			vals = append(vals, fmt.Sprintf("[%d]: %d", i/2, model.DecodeInt(data[i:i+2])))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "word":
+		var vals []string
+		for i := 0; i+2 <= len(data); i += 2 {
+			vals = append(vals, fmt.Sprintf("[%d]: %d (0x%04X)", i/2, model.DecodeWord(data[i:i+2]), model.DecodeWord(data[i:i+2])))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "dint":
+		var vals []string
+		for i := 0; i+4 <= len(data); i += 4 {
+			vals = append(vals, fmt.Sprintf("[%d]: %d", i/4, model.DecodeDInt(data[i:i+4])))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "dword":
+		var vals []string
+		for i := 0; i+4 <= len(data); i += 4 {
+			vals = append(vals, fmt.Sprintf("[%d]: %d (0x%08X)", i/4, model.DecodeDWord(data[i:i+4]), model.DecodeDWord(data[i:i+4])))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "real":
+		var vals []string
+		for i := 0; i+4 <= len(data); i += 4 {
+			vals = append(vals, fmt.Sprintf("[%d]: %g", i/4, model.DecodeReal(data[i:i+4])))
+		}
+		interpreted = strings.Join(vals, "\n")
+	case "string":
+		interpreted = fmt.Sprintf("%q", model.DecodeString(data))
+	default: // raw
+		interpreted = ""
+	}
+
+	switch format {
+	case FormatJSON:
+		result := map[string]interface{}{
+			"raw_hex": hex.EncodeToString(data),
+			"length":  len(data),
+		}
+		if interpreted != "" {
+			result["values"] = strings.Split(interpreted, "\n")
+		}
+		d, _ := json.MarshalIndent(result, "", "  ")
+		return string(d)
+	case FormatHex:
+		if interpreted != "" {
+			return FormatHexDump(data) + "\nInterpreted as " + dataType + ":\n" + interpreted + "\n"
+		}
+		return FormatHexDump(data)
+	default:
+		if interpreted != "" {
+			return interpreted + "\n"
+		}
+		return FormatHexDump(data)
+	}
+}
