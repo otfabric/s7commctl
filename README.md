@@ -47,6 +47,8 @@ Protocol stack:
 - COTP (ISO 8073)
 - S7comm
 
+For an introduction to S7comm concepts and how the CLI maps onto them, see **[PROTOCOL.md](PROTOCOL.md)**.
+
 ## Repository layout
 
 - cmd/s7commctl: Cobra CLI commands
@@ -413,4 +415,4 @@ GitHub Actions workflow is provided at `.github/workflows/ci.yml` and runs:
 
 ## License
 
-See repository license terms.
+See [LICENSE.txt](LICENSE.txt) (MIT). For contributing and security reporting, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
