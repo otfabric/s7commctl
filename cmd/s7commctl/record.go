@@ -7,11 +7,12 @@ import (
 	"os"
 	"time"
 
+	"otfabric/s7comm/client"
+	"otfabric/s7comm/model"
+
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/otfabric/s7commctl/internal/app/validate"
 	"github.com/spf13/cobra"
-	"otfabric/s7comm/client"
-	"otfabric/s7comm/model"
 )
 
 type recordConfig struct {

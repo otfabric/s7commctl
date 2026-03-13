@@ -10,9 +10,10 @@ import (
 	"os"
 	"strings"
 
+	"otfabric/s7comm/wire"
+
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"
-	"otfabric/s7comm/wire"
 )
 
 type pcapDecodeConfig struct {

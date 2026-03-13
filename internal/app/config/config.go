@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"otfabric/s7comm/client"
+
+	"github.com/spf13/cobra"
 )
 
 // DeviceConfig contains common connection parameters

@@ -7,10 +7,11 @@ import (
 	"os"
 	"strings"
 
+	"otfabric/s7comm/client"
+
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/otfabric/s7commctl/internal/app/validate"
 	"github.com/spf13/cobra"
-	"otfabric/s7comm/client"
 )
 
 var blockInfoConfig = config.DefaultBlocksConfig()

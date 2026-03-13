@@ -18,9 +18,6 @@ on:
 permissions:
   contents: write
 
-env:
-  GONOSUMDB: github.com/otfabric/s7comm
-
 jobs:
   bump-version:
     name: Bump Version
@@ -63,7 +60,8 @@ jobs:
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
 
       - name: Show version to build
-        run: echo "Final version to build: $(cat version.txt)"
+        run: |
+          echo "Final version to build: $(cat version.txt)"
 
   build-native:
     name: Build Native Binaries

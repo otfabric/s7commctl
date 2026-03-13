@@ -1,5 +1,11 @@
 # s7commctl
 
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-See%20repository-lightgrey.svg)](#license)
+[![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/s7commctl)](https://goreportcard.com/report/github.com/otfabric/s7commctl)
+[![CI](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/badge/release-v0.0.1-blue.svg)](https://github.com/otfabric/s7commctl/releases)
+
 A professional Siemens S7 communication CLI for ISO-on-TCP (port 102), implemented in pure Go.
 
 ## What it does
