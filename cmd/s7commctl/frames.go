@@ -43,19 +43,21 @@ func writeFrameEvent(w io.Writer, format, source string, summary *wire.FrameSumm
 			return werr
 		}
 		cotpTypeStr := cotp.TPDUType(summary.COTPType).String()
+		fnStr := wire.FunctionCodeString(summary.Function)
+		errStr := wire.HeaderErrorString(summary.ErrorClass, summary.ErrorCode)
 		_, werr := fmt.Fprintf(
 			w,
-			"%s source=%s tpkt=%d cotp=%s rosctr=0x%02X fn=0x%02X param=%d data=%d errClass=0x%02X errCode=0x%02X\n",
+			"%s source=%s tpkt=%d cotp=%s rosctr=0x%02X fn=0x%02X (%s) param=%d data=%d err=%s\n",
 			e.Timestamp,
 			source,
 			summary.TPKTLength,
 			cotpTypeStr,
 			summary.ROSCTR,
 			summary.Function,
+			fnStr,
 			summary.ParamLength,
 			summary.DataLength,
-			summary.ErrorClass,
-			summary.ErrorCode,
+			errStr,
 		)
 		return werr
 	}

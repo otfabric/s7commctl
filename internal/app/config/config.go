@@ -132,7 +132,7 @@ func DefaultIdentifyConfig() IdentifyConfig {
 // ReadConfig for read command
 type ReadConfig struct {
 	DeviceConfig
-	Area       string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M"`
+	Area       string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200"`
 	DBNumber   int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
 	Offset     int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
 	Size       int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes"`
@@ -148,7 +148,7 @@ func DefaultReadConfig() ReadConfig {
 // WriteConfig for write command
 type WriteConfig struct {
 	DeviceConfig
-	Area      string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area"`
+	Area      string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area (DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200)"`
 	DBNumber  int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
 	Offset    int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
 	Value     string `flag:"value" desc:"Value to write"`
@@ -287,7 +287,7 @@ func (c ProbeRackSlotConfig) ToProbeRequest() (client.RackSlotProbeRequest, erro
 // ScanReadRangesConfig for scan read-ranges command
 type ScanReadRangesConfig struct {
 	DeviceConfig
-	Area         string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M"`
+	Area         string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200"`
 	DBNumber     int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number (for DB area)"`
 	Start        int    `flag:"start" env:"S7COMMCTL_SCAN_START" desc:"Start offset (inclusive)"`
 	End          int    `flag:"end" env:"S7COMMCTL_SCAN_END" desc:"End offset (exclusive)"`
@@ -319,7 +319,7 @@ type CompareReadConfig struct {
 	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
 	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"Port (default 102)"`
 	Candidates        string `flag:"candidates" env:"S7COMMCTL_COMPARE_CANDIDATES" desc:"Rack/slot pairs: 0/0,0/1,0/2"`
-	Area              string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area"`
+	Area              string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area (DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200)"`
 	DBNumber          int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
 	Offset            int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
 	Size              int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes"`

@@ -26,7 +26,7 @@ Based on REQUIREMENTS.md, current status is:
 - Implemented
 	- Discovery workflow with TCP/102 probing, rack/slot probing, negotiated PDU/TSAP reporting
 	- Identify command using SZL-backed device metadata (CPU/order/module/firmware where exposed)
-	- Read for DB, I, Q, M, T, C areas
+	- Read for DB, I, Q, M, T, C and extended areas (DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200)
 	- Typed read/write support for BOOL, INT, DINT, REAL, STRING
 	- Write safety model: explicit `--dangerous`, confirmation prompt, optional `--force`
 	- Block management: list, DB listing, block info, block upload (OB/DB/FB/FC/SFB/SFC support path)

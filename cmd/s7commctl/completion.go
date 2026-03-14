@@ -10,7 +10,7 @@ import (
 
 // Completion enum sets for flags (read-only; used by shell completion).
 var (
-	completionAreas      = []string{"DB", "I", "Q", "M", "T", "C"}
+	completionAreas      = []string{"DB", "I", "Q", "M", "T", "C", "DATA_RECORD", "S7200AO", "IEC_COUNTER_200", "IEC_TIMER_200"}
 	completionDataTypes  = []string{"raw", "bool", "int", "dint", "real", "string"}
 	completionBlockTypes = []string{"OB", "DB", "FC", "FB", "SFC", "SFB"}
 	completionFormats    = []string{"json", "table", "text", "plain", "hex", "jsonl", "spans"}

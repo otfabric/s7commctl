@@ -39,7 +39,7 @@ var listAreasCmd = &cobra.Command{
 	Use:   "areas",
 	Short: "List supported memory areas",
 	Run: func(cmd *cobra.Command, args []string) {
-		_, _ = fmt.Fprintln(os.Stdout, "DB\nI\nQ\nM\nT\nC")
+		_, _ = fmt.Fprintln(os.Stdout, "DB\nI\nQ\nM\nT\nC\nDATA_RECORD\nS7200AO\nIEC_COUNTER_200\nIEC_TIMER_200")
 	},
 }
 

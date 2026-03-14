@@ -18,7 +18,7 @@ import (
 
 type recordConfig struct {
 	config.DeviceConfig
-	Area     string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M"`
+	Area     string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200"`
 	DBNumber int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
 	Offset   int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
 	Size     int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes per sample"`

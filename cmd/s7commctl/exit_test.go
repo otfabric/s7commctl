@@ -53,3 +53,20 @@ func TestReadCommand_NoIP_ReturnsUsageExit(t *testing.T) {
 		t.Errorf("expected exit code 2 (usage), got %d", ee.Code)
 	}
 }
+
+// TestCompareRead_InvalidCandidates_ReturnsUsageExit exercises parseCandidates error path.
+func TestCompareRead_InvalidCandidates_ReturnsUsageExit(t *testing.T) {
+	rootCmd.SetArgs([]string{"compare", "read", "--ip", "127.0.0.1", "--area", "I", "--offset", "0", "--size", "4", "--candidates", "x/y"})
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid candidates")
+	}
+	var ee *ExitError
+	if !errors.As(err, &ee) {
+		t.Fatalf("expected *ExitError: %T %v", err, err)
+	}
+	if ee.Code != 2 {
+		t.Errorf("expected exit code 2 (usage), got %d", ee.Code)
+	}
+}

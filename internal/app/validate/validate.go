@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/otfabric/s7comm/model"
+	"github.com/otfabric/s7comm/wire"
 )
 
 func ValidateIP(ip string) error {
@@ -84,6 +85,14 @@ func ValidateArea(area string) (model.Area, error) {
 		return model.AreaCounter, nil
 	case "T", "TIMER":
 		return model.AreaTimer, nil
+	case "DATA_RECORD", "DR":
+		return model.Area(wire.AreaDataRecord), nil
+	case "S7200AO":
+		return model.Area(wire.AreaS7200AO), nil
+	case "IEC_COUNTER_200", "IEC_C200":
+		return model.Area(wire.AreaIECCounter200), nil
+	case "IEC_TIMER_200", "IEC_T200":
+		return model.Area(wire.AreaIECTimer200), nil
 	default:
 		return 0, fmt.Errorf("unknown area: %s", area)
 	}
