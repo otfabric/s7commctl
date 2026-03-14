@@ -139,8 +139,26 @@ s7commctl
 ├── sniff
 ├── pcap-decode
 ├── replay
+├── completion
 └── version
 ```
+
+### Shell completion
+
+Generate tab-completion for bash, zsh, or fish. Enum flags (e.g. `--area`, `--format`, `--type`, `--confirm`, `--profile`) complete with their allowed values.
+
+```bash
+# Bash
+source <(s7commctl completion bash)
+
+# Zsh
+source <(s7commctl completion zsh)
+
+# Fish
+s7commctl completion fish | source
+```
+
+To install permanently (e.g. Bash): `s7commctl completion bash > /etc/bash_completion.d/s7commctl` (or `~/.local/share/bash-completion/completions/s7commctl`).
 
 ### Exit codes
 

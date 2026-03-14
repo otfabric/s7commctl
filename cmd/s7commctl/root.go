@@ -36,6 +36,7 @@ func init() {
 }
 
 func Execute() {
+	registerCompletions(rootCmd)
 	if err := rootCmd.Execute(); err != nil {
 		var ee *ExitError
 		if errors.As(err, &ee) {
