@@ -7,7 +7,7 @@ help: ## This help
 
 APP_NAME       = s7commctl
 APP_SRC        = main.go
-ARCHS          = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64
+ARCHS          = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 VERSION       := $(shell head -1 version.txt)
 COMMIT        := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE    := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
