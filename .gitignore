@@ -5,3 +5,7 @@
 bin/
 release/
 /s7commctl
+
+# Ignore coverage files
+cover.*
+coverage.*

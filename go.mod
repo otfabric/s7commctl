@@ -1,11 +1,11 @@
 module github.com/otfabric/s7commctl
 
-go 1.25.0
+go 1.25
 
 require (
 	github.com/otfabric/go-cotp v0.1.2
 	github.com/otfabric/go-tpkt v0.1.0
-	github.com/otfabric/s7comm v0.5.1
+	github.com/otfabric/s7comm v0.6.1
 	github.com/spf13/cobra v1.10.2
 )
 

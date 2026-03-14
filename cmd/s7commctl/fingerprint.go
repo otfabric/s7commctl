@@ -1,6 +1,7 @@
 package s7commctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -30,24 +31,29 @@ func init() {
 
 func runFingerprint(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(fingerprintConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
-	if err := validate.ValidateRackSlot(fingerprintConfig.Rack, fingerprintConfig.Slot); err != nil {
-		return err
+	if !fingerprintConfig.UseExplicitTSAP() && !fingerprintConfig.AutoRack {
+		if err := validate.ValidateRackSlot(fingerprintConfig.Rack, fingerprintConfig.Slot); err != nil {
+			return ExitUsage(err)
+		}
 	}
 	warnIfPublicTarget(fingerprintConfig.IP, fingerprintConfig.Quiet, "verify authorization and network exposure", fingerprintConfig.NoExposureWarning)
 
-	opts := fingerprintConfig.ToClientOptions()
+	opts, err := fingerprintConfig.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	c := client.New(fingerprintConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
-		return fmt.Errorf("connect failed: %w", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
 	info, err := c.Identify(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("identify failed: %w", err)
+		return ExitRuntime(fmt.Errorf("identify failed: %w", err))
 	}
 
 	connInfo := c.ConnectionInfo()
@@ -55,31 +61,46 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 	readRes, readErr := c.ReadMerkers(cmd.Context(), 0, 1)
 	_, uploadProbeErr := c.ListBlocks(cmd.Context(), model.BlockDB)
 
-	fp := &model.Fingerprint{
-		CPUType:        info.CPUType,
-		CPUGeneration:  classifyCPUGeneration(info.OrderNumber, info.CPUType),
-		OrderNumber:    info.OrderNumber,
-		FirmwareVer:    info.FWVersion,
-		ModuleName:     info.ModuleName,
-		PDUSize:        connInfo.PDUSize,
-		MaxAmqCalling:  connInfo.MaxAmqCalling,
-		MaxAmqCalled:   connInfo.MaxAmqCalled,
-		DetectedRack:   connInfo.Rack,
-		DetectedSlot:   connInfo.Slot,
-		AcceptedTSAP:   connInfo.RemoteTSAP,
-		Protection:     protection,
-		SupportsRead:   readErr == nil && readRes != nil && readRes.OK(),
-		SupportsWrite:  protection == model.ProtectionNone,
-		SupportsSZL:    true,
-		SupportsUpload: uploadProbeErr == nil,
+	view := &output.FingerprintView{
+		CPUType:            info.CPUType,
+		CPUGeneration:      classifyCPUGeneration(info.OrderNumber, info.CPUType),
+		OrderNumber:        info.OrderNumber,
+		FirmwareVer:        info.FWVersion,
+		ModuleName:         info.ModuleName,
+		PDUSize:            connInfo.PDUSize,
+		MaxAmqCalling:      connInfo.MaxAmqCalling,
+		MaxAmqCalled:       connInfo.MaxAmqCalled,
+		DetectedRack:       connInfo.Rack,
+		DetectedSlot:       connInfo.Slot,
+		AcceptedTSAP:       fmt.Sprint(connInfo.RemoteTSAP),
+		Protection:         protection.String(),
+		SupportsRead:       readErr == nil && readRes != nil && readRes.OK(),
+		WriteLikelyAllowed: protection == model.ProtectionNone,
+		SupportsSZL:        true,
+		UploadProbeOK:      uploadProbeErr == nil,
 	}
 
 	if fingerprintConfig.Quiet {
-		_, _ = fmt.Fprintln(os.Stdout, fp.CPUType)
+		_, _ = fmt.Fprintln(os.Stdout, view.CPUType)
 		return nil
 	}
 
-	_, _ = fmt.Fprint(os.Stdout, output.FormatFingerprint(fp, fingerprintConfig.Format))
+	if strings.ToLower(fingerprintConfig.Format) == output.FormatJSON {
+		port := fingerprintConfig.Port
+		if port == 0 {
+			port = 102
+		}
+		req := fingerprintConfig.ConnectionRequestMeta()
+		out := map[string]interface{}{
+			"target":  map[string]interface{}{"ip": fingerprintConfig.IP, "port": port},
+			"request": req,
+			"result":  output.FingerprintResultMap(view),
+		}
+		data, _ := json.MarshalIndent(out, "", "  ")
+		_, _ = fmt.Fprintln(os.Stdout, string(data))
+		return nil
+	}
+	_, _ = fmt.Fprint(os.Stdout, output.FormatFingerprint(view, fingerprintConfig.Format))
 	return nil
 }
 

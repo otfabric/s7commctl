@@ -20,7 +20,7 @@ import (
 type pcapDecodeConfig struct {
 	File   string `flag:"file" env:"S7COMMCTL_PCAP_FILE" desc:"Path to .pcap file"`
 	Format string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: text, jsonl"`
-	Port   int    `flag:"port" env:"S7COMMCTL_S7_PORT" desc:"TCP port filter"`
+	Port   int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port filter"`
 }
 
 var pdcConfig = pcapDecodeConfig{
@@ -31,6 +31,7 @@ var pdcConfig = pcapDecodeConfig{
 var pcapDecodeCmd = &cobra.Command{
 	Use:   "pcap-decode",
 	Short: "Decode S7 frames from an offline pcap file",
+	Long:  "Best-effort decoder for clean Ethernet/IPv4/TCP captures. Does not perform full TCP stream reassembly (no sequence, retransmit, or out-of-order handling).",
 	RunE:  runPcapDecode,
 }
 
@@ -44,13 +45,13 @@ func init() {
 func runPcapDecode(cmd *cobra.Command, args []string) error {
 	f, err := os.Open(pdcConfig.File)
 	if err != nil {
-		return fmt.Errorf("open pcap: %w", err)
+		return ExitRuntime(fmt.Errorf("open pcap: %w", err))
 	}
 	defer func() { _ = f.Close() }()
 
 	packets, err := readPCAPPackets(f)
 	if err != nil {
-		return err
+		return ExitRuntime(err)
 	}
 
 	buffers := map[string][]byte{}
@@ -79,7 +80,7 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 			summary, derr := wire.InspectFrame(frame)
 			source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
 			if werr := writeFrameEvent(os.Stdout, pdcConfig.Format, source, summary, derr); werr != nil {
-				return werr
+				return ExitRuntime(werr)
 			}
 		}
 	}

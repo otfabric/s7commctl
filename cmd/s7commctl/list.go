@@ -56,61 +56,84 @@ func init() {
 }
 
 func runListBlocks(cmd *cobra.Command, args []string) error {
-	if err := validate.ValidateIP(listBlocksConfig.IP); err != nil {
-		return err
-	}
-	if err := validate.ValidateRackSlot(listBlocksConfig.Rack, listBlocksConfig.Slot); err != nil {
-		return err
-	}
-	warnIfPublicTarget(listBlocksConfig.IP, listBlocksConfig.Quiet, "verify authorization and network exposure", listBlocksConfig.NoExposureWarning)
+	return runListBlocksWithConfig(cmd, args, listBlocksConfig)
+}
 
-	opts := listBlocksConfig.ToClientOptions()
-	c := client.New(listBlocksConfig.IP, opts...)
+// runListBlocksWithConfig runs list blocks with the given config (avoids mutating global listBlocksConfig).
+func runListBlocksWithConfig(cmd *cobra.Command, _ []string, cfg config.BlocksConfig) error {
+	if err := validate.ValidateIP(cfg.IP); err != nil {
+		return ExitUsage(err)
+	}
+	if !cfg.UseExplicitTSAP() && !cfg.AutoRack {
+		if err := validate.ValidateRackSlot(cfg.Rack, cfg.Slot); err != nil {
+			return ExitUsage(err)
+		}
+	}
+	warnIfPublicTarget(cfg.IP, cfg.Quiet, "verify authorization and network exposure", cfg.NoExposureWarning)
+
+	opts, err := cfg.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
+	c := client.New(cfg.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
-		listBlocksFailJSON(listBlocksConfig.Format, fmt.Sprintf("connect failed: %v", err))
-		return fmt.Errorf("connect failed: %w", err)
+		listBlocksErrorJSON(cfg, "connect failed", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
 	var blocks []model.BlockInfo
-	var err error
-	if listBlocksConfig.BlockType != "" {
-		bt, e := validate.ValidateBlockType(listBlocksConfig.BlockType)
+	if cfg.BlockType != "" {
+		bt, e := validate.ValidateBlockType(cfg.BlockType)
 		if e != nil {
-			return e
+			return ExitUsage(e)
 		}
 		blocks, err = c.ListBlocks(cmd.Context(), bt)
 	} else {
 		blocks, err = c.ListAllBlocks(cmd.Context())
 	}
 	if err != nil {
-		listBlocksFailJSON(listBlocksConfig.Format, fmt.Sprintf("list blocks failed: %v", err))
-		return fmt.Errorf("list blocks failed: %w", err)
+		listBlocksErrorJSON(cfg, "list blocks failed", err)
+		return ExitRuntime(fmt.Errorf("list blocks failed: %w", err))
 	}
 	if blocks == nil {
 		blocks = []model.BlockInfo{}
 	}
 
-	_, _ = fmt.Fprint(os.Stdout, output.FormatBlocks(blocks, listBlocksConfig.Format))
+	_, _ = fmt.Fprint(os.Stdout, output.FormatBlocks(blocks, cfg.Format))
 	return nil
 }
 
-// listBlocksFailJSON prints structured error JSON and exits when format is json (REQUIREMENTS #17).
-func listBlocksFailJSON(format, errMsg string) {
-	if strings.ToLower(format) != output.FormatJSON {
+// listBlocksErrorJSON prints structured error JSON to stdout when format is json (caller should then return ExitRuntime).
+func listBlocksErrorJSON(cfg config.BlocksConfig, prefix string, err error) {
+	if strings.ToLower(cfg.Format) != output.FormatJSON {
 		return
 	}
-	out := map[string]string{"status": "error", "error": errMsg}
-	data, _ := json.Marshal(out)
+	msg := prefix
+	if err != nil {
+		msg = prefix + ": " + err.Error()
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 102
+	}
+	reqMeta := cfg.ConnectionRequestMeta()
+	reqMeta["block_type"] = cfg.BlockType
+	target := map[string]interface{}{"ip": cfg.IP, "port": port}
+	out := map[string]interface{}{
+		"target":  target,
+		"request": reqMeta,
+		"error":   map[string]string{"code": "runtime", "message": msg},
+	}
+	data, _ := json.MarshalIndent(out, "", "  ")
 	_, _ = fmt.Fprintln(os.Stdout, string(data))
-	os.Exit(1)
 }
 
 func runListDB(cmd *cobra.Command, args []string) error {
-	listDBConfig.BlockType = "DB"
-	if listDBConfig.Format == "" {
-		listDBConfig.Format = "table"
+	cfg := listDBConfig
+	cfg.BlockType = "DB"
+	if cfg.Format == "" {
+		cfg.Format = "table"
 	}
-	listBlocksConfig = listDBConfig
-	return runListBlocks(cmd, args)
+	return runListBlocksWithConfig(cmd, args, cfg)
 }

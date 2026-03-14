@@ -30,26 +30,31 @@ func init() {
 
 func runDiagnostic(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(diagnosticConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
-	if err := validate.ValidateRackSlot(diagnosticConfig.Rack, diagnosticConfig.Slot); err != nil {
-		return err
+	if !diagnosticConfig.UseExplicitTSAP() && !diagnosticConfig.AutoRack {
+		if err := validate.ValidateRackSlot(diagnosticConfig.Rack, diagnosticConfig.Slot); err != nil {
+			return ExitUsage(err)
+		}
 	}
 	warnIfPublicTarget(diagnosticConfig.IP, diagnosticConfig.Quiet, "verify authorization and network exposure", diagnosticConfig.NoExposureWarning)
 
-	opts := diagnosticConfig.ToClientOptions()
+	opts, err := diagnosticConfig.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	c := client.New(diagnosticConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
-		diagnosticFailJSON(diagnosticConfig.Format, fmt.Sprintf("connect failed: %v", err))
-		return fmt.Errorf("connect failed: %w", err)
+		diagnosticErrorJSON(diagnosticConfig, "connect failed", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
 	diag, err := c.ReadDiagBuffer(cmd.Context())
 	if err != nil {
-		diagnosticFailJSON(diagnosticConfig.Format, fmt.Sprintf("read diagnostic buffer failed: %v", err))
-		return fmt.Errorf("read diagnostic buffer failed: %w", err)
+		diagnosticErrorJSON(diagnosticConfig, "read diagnostic buffer failed", err)
+		return ExitRuntime(fmt.Errorf("read diagnostic buffer failed: %w", err))
 	}
 
 	cpuState, _ := c.GetCPUState(cmd.Context())
@@ -61,12 +66,22 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 	}
 
 	if diagnosticConfig.Format == output.FormatJSON {
-		payload := map[string]interface{}{
-			"cpu_state":        cpuState.String(),
-			"protection_level": protection.String(),
-			"diagnostic":       diag,
+		port := diagnosticConfig.Port
+		if port == 0 {
+			port = 102
 		}
-		output.PrintJSON(payload)
+		reqMeta := diagnosticConfig.ConnectionRequestMeta()
+		out := map[string]interface{}{
+			"target":  map[string]interface{}{"ip": diagnosticConfig.IP, "port": port},
+			"request": reqMeta,
+			"result": map[string]interface{}{
+				"cpu_state":        cpuState.String(),
+				"protection_level": protection.String(),
+				"diagnostic":       output.DiagBufferResultMap(diag),
+			},
+		}
+		data, _ := json.MarshalIndent(out, "", "  ")
+		_, _ = fmt.Fprintln(os.Stdout, string(data))
 		return nil
 	}
 
@@ -76,26 +91,21 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// diagnosticFailJSON prints a structured error envelope to stdout and exits 1 when format is json (IMPROVEMENT_PLAN 2.3).
-func diagnosticFailJSON(format, errMsg string) {
-	if strings.ToLower(format) != output.FormatJSON {
+// diagnosticErrorJSON prints a structured error envelope to stdout when format is json (caller should then return ExitRuntime).
+func diagnosticErrorJSON(cfg config.DiagnosticConfig, prefix string, err error) {
+	if strings.ToLower(cfg.Format) != output.FormatJSON {
 		return
 	}
-	port := diagnosticConfig.Port
+	port := cfg.Port
 	if port == 0 {
 		port = 102
 	}
+	reqMeta := cfg.ConnectionRequestMeta()
 	out := map[string]interface{}{
-		"status": "error",
-		"error":  errMsg,
-		"target": map[string]interface{}{
-			"ip":   diagnosticConfig.IP,
-			"port": port,
-			"rack": diagnosticConfig.Rack,
-			"slot": diagnosticConfig.Slot,
-		},
+		"target":  map[string]interface{}{"ip": cfg.IP, "port": port},
+		"request": reqMeta,
+		"error":   map[string]string{"code": "runtime", "message": prefix + ": " + err.Error()},
 	}
 	data, _ := json.MarshalIndent(out, "", "  ")
 	_, _ = fmt.Fprintln(os.Stdout, string(data))
-	os.Exit(1)
 }

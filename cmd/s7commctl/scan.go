@@ -39,27 +39,32 @@ func init() {
 
 func runScanReadRanges(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(scanReadRangesConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
 	warnIfPublicTarget(scanReadRangesConfig.IP, scanReadRangesConfig.Quiet, "verify authorization and network exposure", scanReadRangesConfig.NoExposureWarning)
-	if err := validate.ValidateRackSlot(scanReadRangesConfig.Rack, scanReadRangesConfig.Slot); err != nil {
-		return err
+	if !scanReadRangesConfig.UseExplicitTSAP() && !scanReadRangesConfig.AutoRack {
+		if err := validate.ValidateRackSlot(scanReadRangesConfig.Rack, scanReadRangesConfig.Slot); err != nil {
+			return ExitUsage(err)
+		}
 	}
 	area, err := validate.ValidateArea(scanReadRangesConfig.Area)
 	if err != nil {
-		return err
+		return ExitUsage(err)
 	}
 	if scanReadRangesConfig.End <= scanReadRangesConfig.Start {
-		return fmt.Errorf("end must be > start")
+		return ExitUsage(fmt.Errorf("end must be > start"))
 	}
 	if scanReadRangesConfig.ProbeSize <= 0 {
-		return fmt.Errorf("probe-size must be > 0")
+		return ExitUsage(fmt.Errorf("probe-size must be > 0"))
 	}
 
-	opts := scanReadRangesConfig.ToClientOptions()
+	opts, err := scanReadRangesConfig.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	c := client.New(scanReadRangesConfig.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
-		return fmt.Errorf("connect failed: %w", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
@@ -81,7 +86,7 @@ func runScanReadRanges(cmd *cobra.Command, args []string) error {
 
 	result, err := c.ProbeReadableRanges(cmd.Context(), req)
 	if err != nil {
-		return fmt.Errorf("scan failed: %w", err)
+		return ExitRuntime(fmt.Errorf("scan failed: %w", err))
 	}
 
 	format := strings.ToLower(scanReadRangesConfig.Format)
@@ -160,8 +165,8 @@ func printScanReadRangesTable(res *client.RangeProbeResult) {
 	fmt.Println("------  -------------  --------  -----")
 	for _, p := range res.Probes {
 		errStr := ""
-		if p.Result.Error != "" {
-			errStr = p.Result.Error
+		if p.Result.Message != "" {
+			errStr = p.Result.Message
 			if len(errStr) > 30 {
 				errStr = errStr[:27] + "..."
 			}

@@ -3,7 +3,9 @@ package s7commctl
 import (
 	"bufio"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -31,7 +33,7 @@ var rplConfig = replayConfig{
 var replayCmd = &cobra.Command{
 	Use:   "replay",
 	Short: "Replay scaffold for deterministic S7 response scripts",
-	Long:  "Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request.",
+	Long:  "Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.",
 	RunE:  runReplay,
 }
 
@@ -44,36 +46,39 @@ func init() {
 func runReplay(cmd *cobra.Command, args []string) error {
 	responses, err := loadReplayScript(rplConfig.ScriptFile)
 	if err != nil {
-		return err
+		return ExitUsage(err)
 	}
 
 	ln, err := net.Listen("tcp", rplConfig.Listen)
 	if err != nil {
-		return fmt.Errorf("listen failed: %w", err)
+		return ExitRuntime(fmt.Errorf("listen failed: %w", err))
 	}
 	defer func() { _ = ln.Close() }()
 
 	_, _ = fmt.Fprintf(os.Stdout, "replay listening on %s\n", rplConfig.Listen)
 	conn, err := ln.Accept()
 	if err != nil {
-		return fmt.Errorf("accept failed: %w", err)
+		return ExitRuntime(fmt.Errorf("accept failed: %w", err))
 	}
 	defer func() { _ = conn.Close() }()
 
 	idx := 0
 	for {
 		if err := conn.SetReadDeadline(time.Now().Add(300 * time.Second)); err != nil {
-			return err
+			return ExitRuntime(err)
 		}
 		frame, rerr := readTPKTFrame(conn)
 		if rerr != nil {
 			_ = writeFrameEvent(os.Stdout, rplConfig.Format, conn.RemoteAddr().String(), nil, rerr)
-			return nil
+			if errors.Is(rerr, io.EOF) || errors.Is(rerr, net.ErrClosed) {
+				return nil
+			}
+			return ExitRuntime(rerr)
 		}
 
 		summary, derr := wire.InspectFrame(frame)
 		if err := writeFrameEvent(os.Stdout, rplConfig.Format, conn.RemoteAddr().String(), summary, derr); err != nil {
-			return err
+			return ExitRuntime(err)
 		}
 
 		if idx >= len(responses) {
@@ -83,7 +88,7 @@ func runReplay(cmd *cobra.Command, args []string) error {
 			time.Sleep(time.Duration(rplConfig.DelayMS) * time.Millisecond)
 		}
 		if _, err := conn.Write(responses[idx]); err != nil {
-			return fmt.Errorf("write scripted response: %w", err)
+			return ExitRuntime(fmt.Errorf("write scripted response: %w", err))
 		}
 		idx++
 	}

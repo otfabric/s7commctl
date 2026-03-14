@@ -1,10 +1,10 @@
 # s7commctl
 
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-See%20repository-lightgrey.svg)](#license)
 [![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/s7commctl)](https://goreportcard.com/report/github.com/otfabric/s7commctl)
 [![CI](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.0.1-blue.svg)](https://github.com/otfabric/s7commctl/releases)
+[![Release](https://img.shields.io/badge/release-v0.2.3-blue.svg)](https://github.com/otfabric/s7commctl/releases)
 
 A professional Siemens S7 communication CLI for ISO-on-TCP (port 102), implemented in pure Go.
 
@@ -62,8 +62,10 @@ Library code is consumed from the separate `otfabric/s7comm` module.
 
 ## Requirements
 
-- Go 1.25+
+- Go 1.22+
 - Network connectivity to S7 targets on TCP/102
+
+The project uses `replace github.com/otfabric/s7comm => ../s7comm` so the CLI builds with Go 1.22 against the local `s7comm` repo (which must have `go 1.22` in its `go.mod`). For CI, the workflow checks out `otfabric/s7comm` so the replace resolves.
 
 ## Build
 
@@ -85,10 +87,10 @@ make quality
 
 This runs:
 
-- formatting check (`fmt-check`)
-- lint (`golangci-lint` if available, fallback to `go vet`)
+- formatting (`fmt`), then staticcheck and golangci-lint
 - vet
 - tests
+- coverage
 
 Quality targets execute for this module (`.`).
 
@@ -167,6 +169,8 @@ Advanced rack/slot probing:
 s7commctl discover --cidr 192.168.1.0/24 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 5
 ```
 
+For script-friendly output (one IP per line), use `--quiet` or `--format quiet`; both are supported intentionally.
+
 ### 2. Determine valid rack/slot values
 
 Probe a target for accepted rack/slot combinations (setup accepted = valid):
@@ -207,7 +211,7 @@ Custom rack/slot range and JSON output:
 s7commctl probe rackslot --ip 192.168.1.10 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 7 --format json
 ```
 
-Use `--summary-only` to print only counts, one recommended connection tuple, and interpretation (no table and no full list of combinations). With many candidates, default table output collapses to summary + examples + one-line total (use `--show-all` for the full list). Interpretation uses “Suggested default tuple” when rack/slot is not discriminated. In strict mode, status is shown as **setup-ok** (setup accepted, no query) or **query-confirmed** (setup + follow-up OK). Use `--repeat N` and `--interval-ms` to run the probe N times and see variance (e.g. “Setup accepted: 255–256 across 3 runs” and “Results varied across runs; endpoint may be rate-sensitive or unstable”). Use `--no-exposure-warning` (or env `S7COMMCTL_NO_EXPOSURE_WARNING`) to suppress the public routable IP warning. Probe JSON uses snake_case keys (`address`, `setup_accepted`, `confirmed_by_query`, etc.).
+Use `--summary-only` to print only counts, one recommended connection tuple, and interpretation (no table and no full list of combinations). With many candidates, default table output collapses to summary + examples + one-line total (use `--show-all` for the full list). Interpretation uses “Suggested default tuple” when rack/slot is not discriminated. In strict mode, status is shown as **setup-ok** (setup accepted, no query) or **query-confirmed** (setup + follow-up OK). Use `--repeat N` and `--interval-ms` to run the probe N times and see variance (e.g. “Setup accepted: 255–256 across 3 runs” and “Results varied across runs; endpoint may be rate-sensitive or unstable”). Use `--no-exposure-warning` (or env `S7COMMCTL_NO_EXPOSURE_WARNING`) to suppress the public routable IP warning. Probe JSON uses the same target/request/result envelope as other commands, with snake_case keys in result (`setup_accepted`, `confirmed_by_query`, `candidates`, `valid`, etc.).
 
 - **valid-connect**: setup communication succeeded; follow-up query not attempted or failed.
 - **valid-query**: setup succeeded and a benign follow-up query (SZL, CPU state, etc.) also succeeded.
@@ -260,7 +264,7 @@ s7commctl read --ip 192.168.1.10 --area DB --db 1 --offset 0 --size 16 --format 
 
 Output includes result status (success, short-read, empty-read, rejected, etc.), requested/returned length, and warnings. Use `--strict-read` to fail the command when the result is not success.
 
-Read merkers and decode as INT values:
+Read markers and decode as INT values (with `--format json`, the result includes a `decoded` array of typed values):
 
 ```bash
 s7commctl read --ip 192.168.1.10 --area M --offset 100 --size 8 --type int
@@ -287,7 +291,9 @@ s7commctl list blocks --ip 192.168.1.10 --format table
 s7commctl list db --ip 192.168.1.10 --format json
 ```
 
-With `--format json`, list blocks and diagnostic print a structured error envelope (`status`, `error`, `target`) to stdout on failure.
+The top-level `blocks` command is an alias for `list blocks` (same behavior).
+
+With `--format json`, list blocks and diagnostic print a structured error envelope (`target`, `request`, `error` with `code` and `message`) to stdout on failure.
 
 ### 10. Block metadata and upload
 
@@ -330,7 +336,7 @@ s7commctl record --ip 192.168.1.10 --area M --offset 100 --size 4 --format hex -
 
 ### 14. Passive sniff decode
 
-Listen for raw TPKT streams on a local TCP socket and decode frames:
+Listen for raw TPKT streams on a local TCP socket and decode frames (single-client mode: one connection at a time).
 
 ```bash
 s7commctl sniff --listen :15102 --format jsonl
@@ -338,7 +344,7 @@ s7commctl sniff --listen :15102 --format jsonl
 
 ### 15. Offline pcap decode
 
-Decode S7-over-TCP frames from a pcap capture:
+Best-effort decode of S7-over-TCP frames from a pcap capture (no full TCP stream reassembly):
 
 ```bash
 s7commctl pcap-decode --file capture.pcap --port 102 --format text
@@ -346,7 +352,7 @@ s7commctl pcap-decode --file capture.pcap --port 102 --format text
 
 ### 16. Replay server scaffold
 
-Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line):
+Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line). Single-client mode: one TCP connection; one response per scripted line until the connection closes.
 
 ```bash
 s7commctl replay --listen :1102 --script replay.hex --format jsonl
@@ -361,6 +367,7 @@ Most command flags support `S7COMMCTL_*` environment variables, for example:
 - S7COMMCTL_RACK
 - S7COMMCTL_SLOT
 - S7COMMCTL_TIMEOUT
+- S7COMMCTL_AUTO_RACK_SLOT
 - S7COMMCTL_LOCAL_TSAP
 - S7COMMCTL_REMOTE_TSAP
 
@@ -406,6 +413,16 @@ GitHub Actions workflow is provided at `.github/workflows/ci.yml` and runs:
 
 - `make quality`
 - `make build-all`
+
+## Output schema conventions (JSON)
+
+Commands that operate on a single target use a consistent envelope when `--format json` is set:
+
+- **target**: `ip`, `port` (connection endpoint only).
+- **request**: includes `connection_mode` (`rack_slot` | `auto_rack_slot` | `explicit_tsap`) plus mode-specific fields (`rack`/`slot` or `local_tsap`/`remote_tsap`) and command-specific params (e.g. `area`, `offset`, `type`, `number`). For **read**, request has `connection` (when present) and `address` (area, db, offset, size). For **compare read**, request holds the read params and candidates.
+- **result**: operation outcome (device info, fingerprint, blocks, read data, etc.). Effective/detected rack/slot appear in result when relevant (e.g. fingerprint).
+
+Error output uses the same envelope with an **error** object (`code`, `message`) instead of result. **Discover** intentionally returns a **raw array** of discovered devices (one object per device); it is a multi-result query, not a single-target envelope. List blocks returns an array of blocks; single-target commands use the envelope above. **Write** request may include `value_truncated: true` when the value is long; the `value` field is then a 128-character preview.
 
 ## Notes and limitations
 

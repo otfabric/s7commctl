@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"strconv"
@@ -29,23 +30,34 @@ type DeviceConfig struct {
 	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning (e.g. authorized environments)"`
 }
 
-// ToClientOptions converts CLI config to library options
-func (c DeviceConfig) ToClientOptions() []client.Option {
-	opts := []client.Option{
-		client.WithRackSlot(c.Rack, c.Slot),
-	}
-	if c.AutoRack {
-		opts = append(opts, client.WithAutoRackSlot(c.BruteRack))
-	}
-	if c.Port > 0 {
-		opts = append(opts, client.WithPort(c.Port))
-	}
-	if c.LocalTSAP != "" && c.RemoteTSAP != "" {
+// ToClientOptions converts CLI config to library options.
+// Connection mode precedence: 1) explicit TSAP 2) auto rack/slot 3) manual rack/slot.
+// Returns error if TSAP is partially set or invalid.
+func (c DeviceConfig) ToClientOptions() ([]client.Option, error) {
+	var opts []client.Option
+
+	// Explicit TSAP takes precedence
+	if c.LocalTSAP != "" || c.RemoteTSAP != "" {
+		if (c.LocalTSAP == "") != (c.RemoteTSAP == "") {
+			return nil, fmt.Errorf("both --local-tsap and --remote-tsap must be set together")
+		}
 		local, err1 := strconv.ParseUint(c.LocalTSAP, 0, 16)
 		remote, err2 := strconv.ParseUint(c.RemoteTSAP, 0, 16)
-		if err1 == nil && err2 == nil {
-			opts = append(opts, client.WithTSAP(uint16(local), uint16(remote)))
+		if err1 != nil {
+			return nil, fmt.Errorf("invalid local-tsap %q: %w", c.LocalTSAP, err1)
 		}
+		if err2 != nil {
+			return nil, fmt.Errorf("invalid remote-tsap %q: %w", c.RemoteTSAP, err2)
+		}
+		opts = append(opts, client.WithTSAP(uint16(local), uint16(remote)))
+	} else if c.AutoRack {
+		opts = append(opts, client.WithAutoRackSlot(c.BruteRack))
+	} else {
+		opts = append(opts, client.WithRackSlot(c.Rack, c.Slot))
+	}
+
+	if c.Port > 0 {
+		opts = append(opts, client.WithPort(c.Port))
 	}
 	if c.Timeout > 0 {
 		opts = append(opts, client.WithTimeout(time.Duration(c.Timeout)*time.Millisecond))
@@ -53,7 +65,34 @@ func (c DeviceConfig) ToClientOptions() []client.Option {
 	if c.RateLimitMS > 0 {
 		opts = append(opts, client.WithRateLimit(time.Duration(c.RateLimitMS)*time.Millisecond))
 	}
-	return opts
+	return opts, nil
+}
+
+// UseExplicitTSAP reports whether both local and remote TSAP are set (connection mode precedence 1).
+func (c DeviceConfig) UseExplicitTSAP() bool {
+	return c.LocalTSAP != "" && c.RemoteTSAP != ""
+}
+
+// ConnectionRequestMeta returns a map for JSON "request" describing connection mode and params (connection_mode, rack, slot, local_tsap, remote_tsap).
+// Use when building target/request/result envelopes so request reflects actual mode instead of raw rack/slot when TSAP or auto-rack is used.
+func (c DeviceConfig) ConnectionRequestMeta() map[string]interface{} {
+	out := make(map[string]interface{})
+	if c.UseExplicitTSAP() {
+		out["connection_mode"] = "explicit_tsap"
+		out["local_tsap"] = c.LocalTSAP
+		out["remote_tsap"] = c.RemoteTSAP
+		return out
+	}
+	if c.AutoRack {
+		out["connection_mode"] = "auto_rack_slot"
+		out["rack"] = c.Rack
+		out["slot"] = c.Slot
+		return out
+	}
+	out["connection_mode"] = "rack_slot"
+	out["rack"] = c.Rack
+	out["slot"] = c.Slot
+	return out
 }
 
 // DefaultDeviceConfig returns sensible defaults
@@ -73,6 +112,7 @@ type DiscoverConfig struct {
 	Profile  string `flag:"profile" env:"S7COMMCTL_DISCOVER_PROFILE" desc:"Probe profile: quick, standard, full"`
 	RateMS   int    `flag:"rate-ms" env:"S7COMMCTL_RATE_MS" desc:"Delay between rack/slot probes in ms"`
 	Format   string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
+	Quiet    bool   `flag:"quiet" env:"S7COMMCTL_QUIET" desc:"Only print discovered IP addresses (one per line)"`
 }
 
 func DefaultDiscoverConfig() DiscoverConfig {
@@ -195,8 +235,9 @@ func DefaultProbeRackSlotConfig() ProbeRackSlotConfig {
 	}
 }
 
-// ToProbeRequest converts ProbeRackSlotConfig to client.RackSlotProbeRequest
-func (c ProbeRackSlotConfig) ToProbeRequest() client.RackSlotProbeRequest {
+// ToProbeRequest converts ProbeRackSlotConfig to client.RackSlotProbeRequest.
+// Returns error if TSAP is partially set or invalid.
+func (c ProbeRackSlotConfig) ToProbeRequest() (client.RackSlotProbeRequest, error) {
 	req := client.DefaultRackSlotProbeRequest(c.IP)
 	req.Port = c.Port
 	if req.Port == 0 {
@@ -224,16 +265,23 @@ func (c ProbeRackSlotConfig) ToProbeRequest() client.RackSlotProbeRequest {
 	}
 	req.RetryDelay = time.Duration(c.RetryDelayMS) * time.Millisecond
 	req.StopOnFirstConfirmed = c.FirstConfirmed
-	if c.LocalTSAP != "" && c.RemoteTSAP != "" {
-		if local, err1 := strconv.ParseUint(c.LocalTSAP, 0, 16); err1 == nil {
-			if remote, err2 := strconv.ParseUint(c.RemoteTSAP, 0, 16); err2 == nil {
-				l, r := uint16(local), uint16(remote)
-				req.LocalTSAP = &l
-				req.RemoteTSAP = &r
-			}
+	if c.LocalTSAP != "" || c.RemoteTSAP != "" {
+		if (c.LocalTSAP == "") != (c.RemoteTSAP == "") {
+			return req, fmt.Errorf("both --local-tsap and --remote-tsap must be set together")
 		}
+		local, err1 := strconv.ParseUint(c.LocalTSAP, 0, 16)
+		remote, err2 := strconv.ParseUint(c.RemoteTSAP, 0, 16)
+		if err1 != nil {
+			return req, fmt.Errorf("invalid local-tsap %q: %w", c.LocalTSAP, err1)
+		}
+		if err2 != nil {
+			return req, fmt.Errorf("invalid remote-tsap %q: %w", c.RemoteTSAP, err2)
+		}
+		l, r := uint16(local), uint16(remote)
+		req.LocalTSAP = &l
+		req.RemoteTSAP = &r
 	}
-	return req
+	return req, nil
 }
 
 // ScanReadRangesConfig for scan read-ranges command

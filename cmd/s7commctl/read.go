@@ -30,23 +30,28 @@ func init() {
 
 func runRead(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(readConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
-	if err := validate.ValidateRackSlot(readConfig.Rack, readConfig.Slot); err != nil {
-		return err
+	if !readConfig.UseExplicitTSAP() && !readConfig.AutoRack {
+		if err := validate.ValidateRackSlot(readConfig.Rack, readConfig.Slot); err != nil {
+			return ExitUsage(err)
+		}
 	}
 	warnIfPublicTarget(readConfig.IP, readConfig.Quiet, "verify authorization and network exposure", readConfig.NoExposureWarning)
 
 	area, err := validate.ValidateArea(readConfig.Area)
 	if err != nil {
-		return err
+		return ExitUsage(err)
 	}
 
-	opts := readConfig.ToClientOptions()
+	opts, err := readConfig.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	c := client.New(readConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
-		return fmt.Errorf("connect failed: %w", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
@@ -59,7 +64,7 @@ func runRead(cmd *cobra.Command, args []string) error {
 
 	result, err := c.ReadArea(cmd.Context(), addr)
 	if err != nil {
-		return fmt.Errorf("read failed: %w", err)
+		return ExitRuntime(fmt.Errorf("read failed: %w", err))
 	}
 
 	if readConfig.Quiet {
@@ -69,13 +74,18 @@ func runRead(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprint(os.Stdout, output.FormatReadResult(result, readConfig.Type, readConfig.Format, &output.ReadResultMeta{
-		IP: readConfig.IP, Port: readConfig.Port, Rack: readConfig.Rack, Slot: readConfig.Slot,
+	port := readConfig.Port
+	if port == 0 {
+		port = 102
+	}
+	meta := &output.ReadResultMeta{
+		IP: readConfig.IP, Port: port,
 		Area: readConfig.Area, DBNumber: readConfig.DBNumber, Offset: readConfig.Offset, RequestedSize: readConfig.Size,
-	}))
-	// On strict-read failure, exit 1 without returning error so Cobra does not print the error again (IMPROVEMENT_PLAN 4.4).
+		ConnectionRequest: readConfig.ConnectionRequestMeta(),
+	}
+	_, _ = fmt.Fprint(os.Stdout, output.FormatReadResult(result, readConfig.Type, readConfig.Format, meta))
 	if result != nil && result.Err() != nil && readConfig.StrictRead {
-		os.Exit(1)
+		return ExitOperation(result.Err())
 	}
 	return nil
 }

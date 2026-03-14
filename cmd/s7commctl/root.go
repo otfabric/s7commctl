@@ -1,6 +1,7 @@
 package s7commctl
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -36,6 +37,13 @@ func init() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		var ee *ExitError
+		if errors.As(err, &ee) {
+			if ee.Err != nil {
+				fmt.Fprintln(os.Stderr, ee.Err)
+			}
+			os.Exit(ee.Code)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

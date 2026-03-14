@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -55,33 +56,39 @@ func init() {
 
 func runRecord(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(recConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
-	if err := validate.ValidateRackSlot(recConfig.Rack, recConfig.Slot); err != nil {
-		return err
+	if !recConfig.UseExplicitTSAP() && !recConfig.AutoRack {
+		if err := validate.ValidateRackSlot(recConfig.Rack, recConfig.Slot); err != nil {
+			return ExitUsage(err)
+		}
 	}
 	warnIfPublicTarget(recConfig.IP, recConfig.Quiet, "verify authorization and network exposure", recConfig.NoExposureWarning)
 	if recConfig.Size <= 0 {
-		return fmt.Errorf("size must be > 0")
+		return ExitUsage(fmt.Errorf("size must be > 0"))
 	}
 	if recConfig.EveryMS <= 0 {
-		return fmt.Errorf("every-ms must be > 0")
+		return ExitUsage(fmt.Errorf("every-ms must be > 0"))
 	}
 
 	area, err := validate.ValidateArea(recConfig.Area)
 	if err != nil {
-		return err
+		return ExitUsage(err)
 	}
 
 	f, err := os.OpenFile(recConfig.Output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		return fmt.Errorf("open output file: %w", err)
+		return ExitRuntime(fmt.Errorf("open output file: %w", err))
 	}
 	defer func() { _ = f.Close() }()
 
-	c := client.New(recConfig.IP, recConfig.ToClientOptions()...)
+	opts, err := recConfig.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
+	c := client.New(recConfig.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
-		return fmt.Errorf("connect failed: %w", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
@@ -97,10 +104,10 @@ func runRecord(cmd *cobra.Command, args []string) error {
 		case <-ticker.C:
 			result, err := c.ReadArea(cmd.Context(), addr)
 			if err != nil {
-				return fmt.Errorf("record read failed: %w", err)
+				return ExitRuntime(fmt.Errorf("record read failed: %w", err))
 			}
-			if err := writeSample(f, samples, result); err != nil {
-				return err
+			if err := writeSample(f, recConfig.Format, recConfig.Type, samples, result); err != nil {
+				return ExitRuntime(fmt.Errorf("write sample failed: %w", err))
 			}
 			samples++
 		}
@@ -110,16 +117,16 @@ func runRecord(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func writeSample(f *os.File, sampleIdx int, result *client.ReadResult) error {
+func writeSample(w io.Writer, format, dataType string, sampleIdx int, result *client.ReadResult) error {
 	data := []byte{}
 	status := ""
 	if result != nil {
 		data = result.Data
 		status = string(result.Status)
 	}
-	switch recConfig.Format {
+	switch format {
 	case "hex":
-		_, err := fmt.Fprintln(f, hex.EncodeToString(data))
+		_, err := fmt.Fprintln(w, hex.EncodeToString(data))
 		return err
 	case "jsonl":
 		fallthrough
@@ -133,15 +140,15 @@ func writeSample(f *os.File, sampleIdx int, result *client.ReadResult) error {
 		if result != nil {
 			record["requested_length"] = result.RequestedLength
 			record["returned_length"] = result.ReturnedLength
-			if result.Error != "" {
-				record["error"] = result.Error
+			if result.Message != "" {
+				record["message"] = result.Message
 			}
 		}
-		if recConfig.Type != "raw" && len(data) > 0 {
-			record["decoded"] = outputValue(data, recConfig.Type)
+		if dataType != "raw" && len(data) > 0 {
+			record["decoded"] = outputValue(data, dataType)
 		}
 		line, _ := json.Marshal(record)
-		_, err := fmt.Fprintln(f, string(line))
+		_, err := fmt.Fprintln(w, string(line))
 		return err
 	}
 }

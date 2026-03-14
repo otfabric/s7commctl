@@ -25,6 +25,14 @@ fmt: ## Format Go code
 	@gofmt -w .
 	@gofumpt -l -w . 2>/dev/null || true
 
+coverage: ## Run tests with coverage (writes coverage.out)
+	@echo "Running coverage"
+	@go test -count=1 -race -coverprofile=coverage.out -covermode=atomic ./...
+
+cover: coverage ## Open coverage report in browser
+	@echo "Opening coverage report"
+	@go tool cover -html=coverage.out
+
 lint: ## Run staticcheck
 	@echo "Running staticcheck"
 	@if command -v staticcheck >/dev/null 2>&1; then \
@@ -35,15 +43,9 @@ lint: ## Run staticcheck
 		exit 1; \
 	fi
 
-lint-ci: ## Run golangci-lint
+lint-ci: ## Run golangci-lint v2 (required for .golangci.yml version 2)
 	@echo "Running golangci-lint"
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./...; \
-	else \
-		echo "golangci-lint not found. Install with:"; \
-		echo "  go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
-		exit 1; \
-	fi
+	@go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3 run ./...
 
 vet: ## Run go vet on project packages
 	@echo "Running go vet"
@@ -54,7 +56,7 @@ test: ## Run all tests on project packages
 	@go clean -testcache
 	@go test -count=1 -race ./...
 
-check: fmt lint lint-ci vet test ## Run all checks (format, lint, vet, test)
+check: fmt lint lint-ci vet test coverage ## Run all checks (format, lint, vet, test, coverage)
 
 quality: check ## Alias for full quality gate
 
@@ -124,11 +126,3 @@ clean: ## Clean the build artifacts
 	@rm -rf $(RELEASE_DIR)
 	@rm -rf bin
 	@rm -f coverage.out coverage.html
-
-coverage: ## Run tests with coverage
-	@echo "Running tests with coverage"
-	@go test -count=1 -race -coverprofile=coverage.out -covermode=atomic ./...
-
-cover: coverage ## Open coverage report in browser
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: coverage.html"

@@ -1,6 +1,7 @@
 package s7commctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -29,21 +30,22 @@ func init() {
 
 func runDiscover(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateCIDR(discoverConfig.CIDR); err != nil {
-		return err
+		return ExitUsage(err)
 	}
 
-	applyDiscoverProfile(&discoverConfig)
+	cfg := discoverConfig
+	applyDiscoverProfile(&cfg)
 
 	results, err := client.Discover(
 		cmd.Context(),
-		discoverConfig.CIDR,
-		client.WithDiscoverTimeout(discoverConfig.Timeout),
-		client.WithDiscoverParallel(discoverConfig.Parallel),
-		client.WithDiscoverRackSlotRange(discoverConfig.RackMin, discoverConfig.RackMax, discoverConfig.SlotMin, discoverConfig.SlotMax),
-		client.WithDiscoverRateLimit(discoverConfig.RateMS),
+		cfg.CIDR,
+		client.WithDiscoverTimeout(cfg.Timeout),
+		client.WithDiscoverParallel(cfg.Parallel),
+		client.WithDiscoverRackSlotRange(cfg.RackMin, cfg.RackMax, cfg.SlotMin, cfg.SlotMax),
+		client.WithDiscoverRateLimit(cfg.RateMS),
 	)
 	if err != nil {
-		return err
+		return ExitRuntime(err)
 	}
 
 	var found []client.DiscoverResult
@@ -54,22 +56,24 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(found) == 0 {
-		if discoverConfig.Format != "json" {
+		if strings.ToLower(cfg.Format) == output.FormatJSON {
+			discoverResultsJSON(found) // emit [] for scriptability
+		} else {
 			fmt.Println("No S7 devices found")
 		}
 		return nil
 	}
 
-	if discoverConfig.Format == "quiet" {
+	if cfg.Quiet || strings.ToLower(cfg.Format) == "quiet" {
 		for _, d := range found {
 			_, _ = fmt.Fprintln(os.Stdout, d.IP)
 		}
 		return nil
 	}
 
-	switch strings.ToLower(discoverConfig.Format) {
+	switch strings.ToLower(cfg.Format) {
 	case output.FormatJSON:
-		output.PrintJSON(found)
+		discoverResultsJSON(found)
 	case output.FormatTable:
 		_, _ = fmt.Fprintln(os.Stdout, "IP              Rack Slot PDU  TSAP")
 		_, _ = fmt.Fprintln(os.Stdout, "--------------- ---- ---- ---- ------")
@@ -82,6 +86,30 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		}
 	}
 	return nil
+}
+
+func discoverResultsJSON(results []client.DiscoverResult) {
+	out := make([]map[string]interface{}, 0, len(results))
+	for _, d := range results {
+		m := map[string]interface{}{
+			"ip":       d.IP,
+			"port":     d.Port,
+			"is_s7":    d.IsS7,
+			"rack":     d.Rack,
+			"slot":     d.Slot,
+			"pdu_size": d.PDUSize,
+			"tsap":     d.TSAP,
+		}
+		if d.Error != "" {
+			m["error"] = d.Error
+		}
+		if d.AbandonedReason != "" {
+			m["abandoned_reason"] = d.AbandonedReason
+		}
+		out = append(out, m)
+	}
+	data, _ := json.MarshalIndent(out, "", "  ")
+	_, _ = fmt.Fprintln(os.Stdout, string(data))
 }
 
 func applyDiscoverProfile(cfg *config.DiscoverConfig) {

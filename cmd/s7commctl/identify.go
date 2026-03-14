@@ -1,8 +1,10 @@
 package s7commctl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/otfabric/s7comm/client"
 
@@ -28,24 +30,29 @@ func init() {
 
 func runIdentify(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(identifyConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
-	if err := validate.ValidateRackSlot(identifyConfig.Rack, identifyConfig.Slot); err != nil {
-		return err
+	if !identifyConfig.UseExplicitTSAP() && !identifyConfig.AutoRack {
+		if err := validate.ValidateRackSlot(identifyConfig.Rack, identifyConfig.Slot); err != nil {
+			return ExitUsage(err)
+		}
 	}
 	warnIfPublicTarget(identifyConfig.IP, identifyConfig.Quiet, "verify authorization and network exposure", identifyConfig.NoExposureWarning)
 
-	opts := identifyConfig.ToClientOptions()
+	opts, err := identifyConfig.ToClientOptions()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	c := client.New(identifyConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
-		return fmt.Errorf("connect failed: %w", err)
+		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
 	info, err := c.Identify(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("identify failed: %w", err)
+		return ExitRuntime(fmt.Errorf("identify failed: %w", err))
 	}
 
 	if identifyConfig.Quiet {
@@ -57,6 +64,21 @@ func runIdentify(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if strings.ToLower(identifyConfig.Format) == output.FormatJSON {
+		port := identifyConfig.Port
+		if port == 0 {
+			port = 102
+		}
+		req := identifyConfig.ConnectionRequestMeta()
+		out := map[string]interface{}{
+			"target":  map[string]interface{}{"ip": identifyConfig.IP, "port": port},
+			"request": req,
+			"result":  output.DeviceInfoResultMap(info),
+		}
+		data, _ := json.MarshalIndent(out, "", "  ")
+		_, _ = fmt.Fprintln(os.Stdout, string(data))
+		return nil
+	}
 	_, _ = fmt.Fprint(os.Stdout, output.FormatDeviceInfo(info, identifyConfig.Format))
 	return nil
 }

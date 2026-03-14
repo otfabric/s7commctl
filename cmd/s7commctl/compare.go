@@ -41,22 +41,22 @@ func init() {
 
 func runCompareRead(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(compareReadConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
 	warnIfPublicTarget(compareReadConfig.IP, false, "verify authorization and network exposure", compareReadConfig.NoExposureWarning)
 	candidates, err := parseCandidates(compareReadConfig.Candidates)
 	if err != nil {
-		return fmt.Errorf("candidates: %w", err)
+		return ExitUsage(fmt.Errorf("candidates: %w", err))
 	}
 	if len(candidates) == 0 {
-		return fmt.Errorf("at least one candidate required (e.g. --candidates 0/0,0/1)")
+		return ExitUsage(fmt.Errorf("at least one candidate required (e.g. --candidates 0/0,0/1)"))
 	}
 	area, err := validate.ValidateArea(compareReadConfig.Area)
 	if err != nil {
-		return err
+		return ExitUsage(err)
 	}
 	if compareReadConfig.Size <= 0 {
-		return fmt.Errorf("size must be > 0")
+		return ExitUsage(fmt.Errorf("size must be > 0"))
 	}
 
 	req := client.CompareReadRequest{
@@ -83,7 +83,7 @@ func runCompareRead(cmd *cobra.Command, args []string) error {
 	for i := 0; i < repeat; i++ {
 		result, err := client.CompareRead(cmd.Context(), req)
 		if err != nil {
-			return fmt.Errorf("compare read failed: %w", err)
+			return ExitRuntime(fmt.Errorf("compare read failed: %w", err))
 		}
 		results = append(results, result)
 		if i < repeat-1 && interval > 0 {
@@ -93,10 +93,14 @@ func runCompareRead(cmd *cobra.Command, args []string) error {
 	result := results[len(results)-1]
 
 	sameAsBaseline := computeSameAsBaseline(result)
-	dataStableAcrossRuns := repeat == 1 || compareDataStable(results)
+	stableByCandidate, dataStableAcrossRuns := compareDataStable(results)
+	if repeat < 2 {
+		stableByCandidate = nil
+		dataStableAcrossRuns = true
+	}
 
 	if strings.ToLower(compareReadConfig.Format) == output.FormatJSON {
-		printCompareReadJSON(result, sameAsBaseline, repeat, dataStableAcrossRuns)
+		printCompareReadJSON(result, sameAsBaseline, repeat, dataStableAcrossRuns, stableByCandidate)
 		return nil
 	}
 
@@ -105,12 +109,15 @@ func runCompareRead(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Rack/slot-insensitive: %v\n", result.RackSlotInsensitive)
 	if repeat > 1 {
 		fmt.Printf("Repeat runs: %d; data stable across runs: %v\n", repeat, dataStableAcrossRuns)
+		if len(stableByCandidate) > 0 {
+			fmt.Printf("Stable by candidate: %v\n", stableByCandidate)
+		}
 	}
 	fmt.Println()
 	fmt.Println("Rack  Slot  Status         Returned  SameAsBaseline  Error")
 	fmt.Println("----  ----  -------------  --------  --------------  -----")
 	for i, bc := range result.ByCandidate {
-		errStr := bc.Result.Error
+		errStr := bc.Result.Message
 		if len(errStr) > 30 {
 			errStr = errStr[:27] + "..."
 		}
@@ -158,36 +165,61 @@ func computeSameAsBaseline(res *client.CompareReadResult) []string {
 	return out
 }
 
-func compareDataStable(results []*client.CompareReadResult) bool {
+// candidateResult holds the comparable outcome for one candidate in a run.
+type candidateResult struct {
+	status string
+	length int
+	data   []byte
+}
+
+// compareDataStable returns per-candidate stability across runs, keyed by rack/slot so ordering is irrelevant.
+func compareDataStable(results []*client.CompareReadResult) (stableByCandidate []bool, allStable bool) {
 	if len(results) < 2 {
-		return true
+		return nil, true
 	}
-	var first []byte
-	for _, bc := range results[0].ByCandidate {
-		if string(bc.Result.Status) == "success" && len(bc.Result.Data) > 0 {
-			first = bc.Result.Data
-			break
-		}
-	}
-	if first == nil {
-		return false
-	}
-	for _, res := range results[1:] {
-		var found []byte
+	// Build map key -> result for first run
+	keyToResult := func(res *client.CompareReadResult) map[string]candidateResult {
+		m := make(map[string]candidateResult, len(res.ByCandidate))
 		for _, bc := range res.ByCandidate {
-			if string(bc.Result.Status) == "success" && len(bc.Result.Data) > 0 {
-				found = bc.Result.Data
+			key := fmt.Sprintf("%d/%d", bc.Rack, bc.Slot)
+			m[key] = candidateResult{
+				status: string(bc.Result.Status),
+				length: bc.Result.ReturnedLength,
+				data:   bytes.Clone(bc.Result.Data),
+			}
+		}
+		return m
+	}
+	firstMap := keyToResult(results[0])
+	stableByKey := make(map[string]bool, len(firstMap))
+	for key := range firstMap {
+		stable := true
+		ref := firstMap[key]
+		for _, res := range results[1:] {
+			runMap := keyToResult(res)
+			cur, ok := runMap[key]
+			if !ok || cur.status != ref.status || cur.length != ref.length || !bytes.Equal(cur.data, ref.data) {
+				stable = false
 				break
 			}
 		}
-		if !bytes.Equal(first, found) {
-			return false
+		stableByKey[key] = stable
+	}
+	// Map back to candidate order for the last result
+	res := results[len(results)-1]
+	stableByCandidate = make([]bool, len(res.ByCandidate))
+	allStable = true
+	for i, bc := range res.ByCandidate {
+		key := fmt.Sprintf("%d/%d", bc.Rack, bc.Slot)
+		stableByCandidate[i] = stableByKey[key]
+		if !stableByKey[key] {
+			allStable = false
 		}
 	}
-	return true
+	return stableByCandidate, allStable
 }
 
-func printCompareReadJSON(res *client.CompareReadResult, sameAsBaseline []string, repeat int, dataStable bool) {
+func printCompareReadJSON(res *client.CompareReadResult, sameAsBaseline []string, repeat int, dataStable bool, stableByCandidate []bool) {
 	sab := sameAsBaseline
 	if sab == nil {
 		sab = []string{}
@@ -204,22 +236,46 @@ func printCompareReadJSON(res *client.CompareReadResult, sameAsBaseline []string
 		if i < len(sab) {
 			ent["same_as_baseline"] = sab[i]
 		}
+		if i < len(stableByCandidate) {
+			ent["stable_across_runs"] = stableByCandidate[i]
+		}
 		if len(bc.Result.Data) > 0 {
 			ent["data_hex"] = hex.EncodeToString(bc.Result.Data)
 		}
-		if bc.Result.Error != "" {
-			ent["error"] = bc.Result.Error
+		if bc.Result.Message != "" {
+			ent["message"] = bc.Result.Message
 		}
 		byCandidate = append(byCandidate, ent)
 	}
-	out := map[string]interface{}{
-		"request":               res.Request,
+	port := res.Request.Port
+	if port == 0 {
+		port = 102
+	}
+	target := map[string]interface{}{"ip": res.Request.Address, "port": port}
+	reqMap := map[string]interface{}{
+		"area":      res.Request.Area.String(),
+		"db_number": res.Request.DBNumber,
+		"offset":    res.Request.Offset,
+		"size":      res.Request.Size,
+	}
+	candidates := make([]map[string]interface{}, 0, len(res.Request.Candidates))
+	for _, r := range res.Request.Candidates {
+		candidates = append(candidates, map[string]interface{}{"rack": r.Rack, "slot": r.Slot})
+	}
+	reqMap["candidates"] = candidates
+	resultObj := map[string]interface{}{
 		"rack_slot_insensitive": res.RackSlotInsensitive,
 		"by_candidate":          byCandidate,
 	}
 	if repeat > 1 {
-		out["repeat_runs"] = repeat
-		out["data_stable_across_runs"] = dataStable
+		resultObj["repeat_runs"] = repeat
+		resultObj["data_stable_across_runs"] = dataStable
+		resultObj["stable_by_candidate"] = stableByCandidate
+	}
+	out := map[string]interface{}{
+		"target":  target,
+		"request": reqMap,
+		"result":  resultObj,
 	}
 	data, _ := json.MarshalIndent(out, "", "  ")
 	_, _ = fmt.Fprintln(os.Stdout, string(data))

@@ -34,7 +34,7 @@ func init() {
 
 func runProfile(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateIP(profileConfig.IP); err != nil {
-		return err
+		return ExitUsage(err)
 	}
 	warnIfPublicTarget(profileConfig.IP, false, "verify authorization and network exposure", profileConfig.NoExposureWarning)
 
@@ -59,7 +59,7 @@ func runProfile(cmd *cobra.Command, args []string) error {
 
 	probeRes, err := client.ProbeRackSlots(ctx, probeReq)
 	if err != nil {
-		return fmt.Errorf("probe failed: %w", err)
+		return ExitRuntime(fmt.Errorf("probe failed: %w", err))
 	}
 
 	setupSupport := probeRes.SetupAccepted > 0
@@ -100,15 +100,19 @@ func runProfile(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	effectivePort := profileConfig.Port
+	if effectivePort == 0 {
+		effectivePort = 102
+	}
 	format := strings.ToLower(profileConfig.Format)
 	if format == output.FormatJSON {
-		printProfileJSON(profileConfig.IP, profileConfig.Port, setupSupport, confirmedByQuery, firstValid != nil, recommendedRack, recommendedSlot, identifyInfo, identifyOK, identifyFieldsFound, blockCount, blocksOK)
+		printProfileJSON(profileConfig.IP, effectivePort, setupSupport, confirmedByQuery, firstValid != nil, recommendedRack, recommendedSlot, identifyInfo, identifyOK, identifyFieldsFound, blockCount, blocksOK)
 		return nil
 	}
 
 	// Text summary (single source: recommendedRack/recommendedSlot for both plain and JSON - IMPROVEMENT_PLAN 4.1)
 	fmt.Printf("Target: %s\n", profileConfig.IP)
-	fmt.Printf("Port: %d\n", profileConfig.Port)
+	fmt.Printf("Port: %d\n", effectivePort)
 	fmt.Println()
 	fmt.Println("Setup support:        ", yesNo(setupSupport))
 	fmt.Println("Rack/slot confirmed:  ", yesNo(confirmedByQuery))
@@ -152,9 +156,7 @@ func yesNo(b bool) string {
 }
 
 func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, hasRecommended bool, recommendedRack, recommendedSlot int, identifyInfo *model.DeviceInfo, identifyOK, identifyFieldsFound bool, blockCount int, blocksOK bool) {
-	out := map[string]interface{}{
-		"target":                ip,
-		"port":                  port,
+	result := map[string]interface{}{
 		"setup_support":         setupSupport,
 		"rack_slot_confirmed":   confirmedByQuery,
 		"identify_transport_ok": identifyOK,
@@ -162,18 +164,23 @@ func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, 
 		"block_list_support":    blocksOK,
 	}
 	if hasRecommended {
-		out["recommended_rack"] = recommendedRack
-		out["recommended_slot"] = recommendedSlot
+		result["recommended_rack"] = recommendedRack
+		result["recommended_slot"] = recommendedSlot
 	}
 	if identifyInfo != nil {
-		out["identify"] = map[string]interface{}{
+		result["identify"] = map[string]interface{}{
 			"cpu_type":    profileStrOrNull(identifyInfo.CPUType),
 			"order":       profileStrOrNull(identifyInfo.OrderNumber),
 			"module_name": profileStrOrNull(identifyInfo.ModuleName),
 		}
 	}
 	if blocksOK {
-		out["block_count"] = blockCount
+		result["block_count"] = blockCount
+	}
+	out := map[string]interface{}{
+		"target":  map[string]interface{}{"ip": ip, "port": port},
+		"request": map[string]interface{}{},
+		"result":  result,
 	}
 	data, _ := json.MarshalIndent(out, "", "  ")
 	_, _ = fmt.Fprintln(os.Stdout, string(data))
