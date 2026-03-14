@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/otfabric/go-tpkt"
 	"github.com/otfabric/s7comm/wire"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
@@ -189,22 +190,24 @@ func flowKey(src string, srcPort int, dst string, dstPort int) string {
 	return k2
 }
 
+// popTPKTFrame pops one TPKT frame from buf using go-tpkt for validation.
+// Returns (frame, remainder, true) or (nil, buf, false) if no complete frame.
 func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
-	for len(buf) >= 4 {
-		if buf[0] != 3 {
+	for len(buf) >= tpkt.HeaderLength {
+		totalLen := int(binary.BigEndian.Uint16(buf[2:4]))
+		if totalLen < tpkt.MinPacketLength || totalLen > tpkt.MaxPacketLength {
 			buf = buf[1:]
 			continue
 		}
-		length := int(binary.BigEndian.Uint16(buf[2:4]))
-		if length < 4 {
-			buf = buf[1:]
-			continue
-		}
-		if len(buf) < length {
+		if len(buf) < totalLen {
 			return nil, buf, false
 		}
-		frame := append([]byte(nil), buf[:length]...)
-		return frame, bytes.Clone(buf[length:]), true
+		pkt := buf[:totalLen]
+		if _, err := tpkt.Parse(pkt); err != nil {
+			buf = buf[1:]
+			continue
+		}
+		return bytes.Clone(pkt), bytes.Clone(buf[totalLen:]), true
 	}
 	return nil, buf, false
 }
