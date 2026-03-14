@@ -47,7 +47,7 @@ Protocol stack:
 - COTP (ISO 8073)
 - S7comm
 
-For an introduction to S7comm concepts and how the CLI maps onto them, see **[PROTOCOL.md](PROTOCOL.md)**.
+For an introduction to S7comm concepts and how the CLI maps onto them, see **[PROTOCOL.md](PROTOCOL.md)**. For read-only command examples against a single host, see **[EXAMPLES.md](EXAMPLES.md)**.
 
 ## Repository layout
 
