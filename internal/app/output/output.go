@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/otfabric/s7comm/client"
-	"github.com/otfabric/s7comm/model"
+	"github.com/otfabric/go-s7comm/client"
+	"github.com/otfabric/go-s7comm/model"
 )
 
 const (

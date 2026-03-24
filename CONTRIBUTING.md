@@ -43,7 +43,7 @@ Please run `make fmt` and `make quality` (or at least `make check`) before submi
 
 
 - **Protocol background**: [PROTOCOL.md](PROTOCOL.md) introduces S7comm concepts and how the CLI maps onto them.
-- **Library**: The protocol and client logic live in the separate [otfabric/s7comm](https://github.com/otfabric/s7comm) module; this repo is the CLI and consumes it via `go.mod`.
+- **Library**: The protocol and client logic live in the separate [otfabric/go-s7comm](https://github.com/otfabric/go-s7comm) module; this repo is the CLI and consumes it via `go.mod`.
 
 ## Error handling and output
 

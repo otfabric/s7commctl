@@ -1,10 +1,10 @@
 # s7commctl
 
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-See%20repository-lightgrey.svg)](#license)
 [![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/s7commctl)](https://goreportcard.com/report/github.com/otfabric/s7commctl)
 [![CI](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v0.2.3-blue.svg)](https://github.com/otfabric/s7commctl/releases)
+[![Release](https://img.shields.io/github/v/release/otfabric/s7commctl?label=release)](https://github.com/otfabric/s7commctl/releases)
 
 A professional Siemens S7 communication CLI for ISO-on-TCP (port 102), implemented in pure Go.
 
@@ -56,16 +56,16 @@ For an introduction to S7comm concepts and how the CLI maps onto them, see **[PR
 - internal/app/validate: input validation and typed parsing
 - internal/app/output: renderers for json/table/text/hex output
 - main.go: CLI entrypoint
-- go.mod: tool module with dependency on `otfabric/s7comm`
+- go.mod: tool module with dependency on `otfabric/go-s7comm`
 
-Library code is consumed from the separate `otfabric/s7comm` module.
+Library code is consumed from the separate `otfabric/go-s7comm` module.
 
 ## Requirements
 
 - Go 1.22+
 - Network connectivity to S7 targets on TCP/102
 
-The project uses `replace github.com/otfabric/s7comm => ../s7comm` so the CLI builds with Go 1.22 against the local `s7comm` repo (which must have `go 1.22` in its `go.mod`). For CI, the workflow checks out `otfabric/s7comm` so the replace resolves.
+The project uses `replace github.com/otfabric/go-s7comm => ../s7comm` so the CLI builds with Go 1.22 against the local `s7comm` repo (which must have `go 1.22` in its `go.mod`). For CI, the workflow checks out `otfabric/go-s7comm` so the replace resolves.
 
 ## Build
 
@@ -423,7 +423,7 @@ Current tests focus on:
 - write safety confirmation helpers
 - pcap/replay/frame parsing helpers
 
-Note: low-level protocol codec coverage is primarily maintained in the `otfabric/s7comm` library module.
+Note: low-level protocol codec coverage is primarily maintained in the `otfabric/go-s7comm` library module.
 
 ## CI
 

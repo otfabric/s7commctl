@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/otfabric/go-s7comm/wire"
 	"github.com/otfabric/go-tpkt"
-	"github.com/otfabric/s7comm/wire"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"

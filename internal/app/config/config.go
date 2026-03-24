@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/otfabric/s7comm/client"
+	"github.com/otfabric/go-s7comm/client"
 
 	"github.com/spf13/cobra"
 )

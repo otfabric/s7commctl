@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/otfabric/s7comm/client"
-	"github.com/otfabric/s7comm/model"
+	"github.com/otfabric/go-s7comm/client"
+	"github.com/otfabric/go-s7comm/model"
 )
 
 func TestFormatDeviceInfoText(t *testing.T) {

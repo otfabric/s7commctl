@@ -8,17 +8,19 @@ help: ## This help
 APP_NAME       = s7commctl
 APP_SRC        = main.go
 ARCHS          = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
-VERSION       := $(shell head -1 version.txt)
-COMMIT        := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_DATE    := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS       := -ldflags "-X 'github.com/otfabric/s7commctl/cmd/s7commctl.Version=$(VERSION)' -X 'github.com/otfabric/s7commctl/cmd/s7commctl.Commit=$(COMMIT)' -X 'github.com/otfabric/s7commctl/cmd/s7commctl.BuildDate=$(BUILD_DATE)'"
+COMMIT         := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+TAG            := $(shell git describe --tags --exact-match 2>/dev/null || echo "")
+# Strip leading v for display/artifacts; fall back to dev when not in a git repo
+VERSION        := $(shell desc=$$(git describe --tags --always --dirty 2>/dev/null); if [ -z "$$desc" ]; then echo dev; else echo "$$desc" | sed 's/^v//'; fi)
+LDFLAGS        := -ldflags "-s -w -X main.version=$(VERSION) -X main.tag=$(TAG) -X main.commit=$(COMMIT) -X main.buildDate=$(BUILD_DATE)"
 RELEASE_DIR   := release
 
 all: test build build-all ## Test and build the application
 
 run: ## Run the application
 	@echo "Running $(APP_NAME)"
-	@go run $(APP_SRC)
+	@go run $(LDFLAGS) $(APP_SRC)
 
 fmt: ## Format Go code
 	@echo "Formatting code"

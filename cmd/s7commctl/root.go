@@ -9,10 +9,19 @@ import (
 )
 
 var (
-	Version   = "dev"
-	Commit    = "unknown"
-	BuildDate = "unknown"
+	buildVersion = "dev"
+	buildTag     = ""
+	buildCommit  = "unknown"
+	buildDateStr = "unknown"
 )
+
+// SetBuildInfo sets version metadata (normally from main via -ldflags on main.version, main.tag, main.commit, main.buildDate).
+func SetBuildInfo(version, tag, commit, buildDate string) {
+	buildVersion = version
+	buildTag = tag
+	buildCommit = commit
+	buildDateStr = buildDate
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "s7commctl",
@@ -27,7 +36,11 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("s7commctl version %s (commit: %s, built: %s)\n", Version, Commit, BuildDate)
+		if buildTag != "" {
+			fmt.Printf("s7commctl version %s (tag: %s, commit: %s, built: %s)\n", buildVersion, buildTag, buildCommit, buildDateStr)
+			return
+		}
+		fmt.Printf("s7commctl version %s (commit: %s, built: %s)\n", buildVersion, buildCommit, buildDateStr)
 	},
 }
 

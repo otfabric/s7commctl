@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/otfabric/s7comm/client"
+	"github.com/otfabric/go-s7comm/client"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/otfabric/s7commctl/internal/app/validate"
