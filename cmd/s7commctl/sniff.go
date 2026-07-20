@@ -8,8 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/otfabric/go-s7comm/wire"
-
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"
 )
@@ -67,7 +65,7 @@ func runSniff(cmd *cobra.Command, args []string) error {
 			return ExitRuntime(rerr)
 		}
 
-		summary, derr := wire.InspectFrame(frame)
+		summary, derr := inspectTPKTFrame(frame)
 		if err := writeFrameEvent(os.Stdout, snfConfig.Format, conn.RemoteAddr().String(), summary, derr); err != nil {
 			return ExitRuntime(err)
 		}

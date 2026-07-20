@@ -5,6 +5,9 @@ help: ## This help
 
 .DEFAULT_GOAL := help
 
+# Ignore parent-directory go.work files so this module builds standalone.
+export GOWORK := off
+
 APP_NAME       = s7commctl
 APP_SRC        = main.go
 ARCHS          = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64

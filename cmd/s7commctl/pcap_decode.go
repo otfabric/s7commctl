@@ -10,9 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/otfabric/go-s7comm/wire"
-	"github.com/otfabric/go-tpkt"
-
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"
 )
@@ -77,7 +74,7 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 			}
 			buffers[flow] = rest
 
-			summary, derr := wire.InspectFrame(frame)
+			summary, derr := inspectTPKTFrame(frame)
 			source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
 			if werr := writeFrameEvent(os.Stdout, pdcConfig.Format, source, summary, derr); werr != nil {
 				return ExitRuntime(werr)
@@ -191,12 +188,12 @@ func flowKey(src string, srcPort int, dst string, dstPort int) string {
 	return k2
 }
 
-// popTPKTFrame pops one TPKT frame from buf using go-tpkt for validation.
+// popTPKTFrame pops one TPKT frame from buf.
 // Returns (frame, remainder, true) or (nil, buf, false) if no complete frame.
 func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
-	for len(buf) >= tpkt.HeaderLength {
+	for len(buf) >= tpktHeaderLength {
 		totalLen := int(binary.BigEndian.Uint16(buf[2:4]))
-		if totalLen < tpkt.MinPacketLength || totalLen > tpkt.MaxPacketLength {
+		if totalLen < tpktMinPacketLength || totalLen > tpktMaxPacketLength {
 			buf = buf[1:]
 			continue
 		}
@@ -204,7 +201,7 @@ func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 			return nil, buf, false
 		}
 		pkt := buf[:totalLen]
-		if _, err := tpkt.Parse(pkt); err != nil {
+		if _, err := peelTPKT(pkt); err != nil {
 			buf = buf[1:]
 			continue
 		}

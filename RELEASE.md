@@ -1,5 +1,31 @@
 # s7commctl Releases
 
+## v0.2.7
+
+**Date:** 2026-07-21  
+**Previous release:** v0.2.6
+
+### Summary
+
+This release upgrades the S7 client library to **`go-s7comm` v0.7.3** and stops depending directly on **`go-cotp`** / **`go-tpkt`**. Offline frame tooling (`sniff`, `replay`, `pcap-decode`) now peels TPKT locally and inspects COTP TPDUs via `wire.InspectTPDU`.
+
+### Highlights
+
+- **Dependency bump:** Track **`github.com/otfabric/go-s7comm` v0.7.3**. `go-cotp` and `go-tpkt` remain available only as **indirect** dependencies through go-s7comm.
+- **Frame inspection:** Replace `wire.InspectFrame` with local TPKT peel + `wire.InspectTPDU`. Text frame output reports **`tpdu=`** (TPDU length) instead of **`tpkt=`**.
+- **Standalone builds:** Makefile sets **`GOWORK=off`** so `make check` / builds work when a parent-directory `go.work` does not include this module.
+
+### Toolchain
+
+- **Go:** `go 1.25` (see `go.mod`).
+
+### Upgrade notes
+
+- After pulling v0.2.7, run **`go mod tidy`**.
+- Scripts that parse text frame lines should expect **`tpdu=`** instead of **`tpkt=`**.
+
+---
+
 ## v0.2.6
 
 **Date:** 2026-03-24  
