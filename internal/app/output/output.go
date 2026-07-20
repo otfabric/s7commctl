@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Package output provides CLI output formatters.
 package output
 

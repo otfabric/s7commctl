@@ -1,5 +1,29 @@
 # s7commctl Releases
 
+## v0.2.8
+
+**Date:** 2026-07-21  
+**Previous release:** v0.2.7
+
+### Summary
+
+Open-source license hygiene and README badge standardization for public MIT release.
+
+### Highlights
+
+- **License:** Root **`LICENSE`** is the standard MIT text with **`Copyright (c) 2026 OT Fabric`** (replaces `LICENSE.txt`). First-party Go sources carry **`// SPDX-License-Identifier: MIT`**. README license section points at `./LICENSE`.
+- **Badges:** README badge block normalized (Go version from `go.mod`, pkg.go.dev, MIT, CI, Codecov, latest release).
+
+### Toolchain
+
+- **Go:** `go 1.25` (see `go.mod`).
+
+### Upgrade notes
+
+- None for CLI users. Forks/docs that linked **`LICENSE.txt`** should use **`LICENSE`**.
+
+---
+
 ## v0.2.7
 
 **Date:** 2026-07-21  

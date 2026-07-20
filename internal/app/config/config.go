@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Package config provides CLI configuration and flag registration.
 package config
 

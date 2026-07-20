@@ -1,12 +1,34 @@
 # s7commctl
 
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
-[![License](https://img.shields.io/badge/License-See%20repository-lightgrey.svg)](#license)
-[![Go Report Card](https://goreportcard.com/badge/github.com/otfabric/s7commctl)](https://goreportcard.com/report/github.com/otfabric/s7commctl)
+[![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Reference](https://pkg.go.dev/badge/github.com/otfabric/s7commctl.svg)](https://pkg.go.dev/github.com/otfabric/s7commctl)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/otfabric/s7commctl/graph/badge.svg)](https://codecov.io/gh/otfabric/s7commctl)
 [![Release](https://img.shields.io/github/v/release/otfabric/s7commctl?label=release)](https://github.com/otfabric/s7commctl/releases)
 
 A professional Siemens S7 communication CLI for ISO-on-TCP (port 102), implemented in pure Go.
+
+## Table of contents
+
+- [What it does](#what-it-does)
+- [Requirements implementation status](#requirements-implementation-status)
+- [Repository layout](#repository-layout)
+- [Requirements](#requirements)
+- [Build](#build)
+- [Quality targets](#quality-targets)
+- [Usage](#usage)
+  - [Command tree](#command-tree)
+  - [Shell completion](#shell-completion)
+  - [Exit codes](#exit-codes)
+- [Common examples](#common-examples)
+- [Configuration via environment variables](#configuration-via-environment-variables)
+- [Safety model](#safety-model)
+- [Testing](#testing)
+- [CI](#ci)
+- [Output schema conventions (JSON)](#output-schema-conventions-json)
+- [Notes and limitations](#notes-and-limitations)
+- [License](#license)
 
 ## What it does
 
@@ -450,4 +472,6 @@ Error output uses the same envelope with an **error** object (`code`, `message`)
 
 ## License
 
-See [LICENSE.txt](LICENSE.txt) (MIT). For contributing and security reporting, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+This project is licensed under the MIT License. See [LICENSE](./LICENSE).
+
+For contributing and security reporting, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).

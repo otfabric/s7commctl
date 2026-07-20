@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 // Package validate provides input validation for CLI.
 package validate
 
