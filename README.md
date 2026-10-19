@@ -84,10 +84,10 @@ Library code is consumed from the separate `otfabric/go-s7comm` module.
 
 ## Requirements
 
-- Go 1.22+
+- Go 1.25+
 - Network connectivity to S7 targets on TCP/102
 
-The project uses `replace github.com/otfabric/go-s7comm => ../s7comm` so the CLI builds with Go 1.22 against the local `s7comm` repo (which must have `go 1.22` in its `go.mod`). For CI, the workflow checks out `otfabric/go-s7comm` so the replace resolves.
+The library dependency `github.com/otfabric/go-s7comm` (currently v0.7.3) is a regular versioned module requirement in `go.mod`; no local `replace` or sibling checkout is needed.
 
 ## Build
 
@@ -294,6 +294,13 @@ s7commctl profile --ip 192.168.1.10 --format json
 s7commctl identify --ip 192.168.1.10 --rack 0 --slot 1 --format json
 ```
 
+Instead of `--rack`/`--slot`, device commands can auto-detect rack/slot with `--auto-rack-slot` (add `--brute-rack-slot` to try rack 0-3 and slot 0-5), or use explicit TSAPs with `--local-tsap` and `--remote-tsap` (decimal or `0x` hex; both must be set together). Precedence: explicit TSAP, then auto rack/slot, then manual rack/slot.
+
+```bash
+s7commctl identify --ip 192.168.1.10 --auto-rack-slot
+s7commctl identify --ip 192.168.1.10 --local-tsap 0x0100 --remote-tsap 0x0102
+```
+
 ### 7. Read memory
 
 Read 16 bytes from DB1 offset 0:
@@ -407,9 +414,10 @@ Most command flags support `S7COMMCTL_*` environment variables, for example:
 - S7COMMCTL_RACK
 - S7COMMCTL_SLOT
 - S7COMMCTL_TIMEOUT
-- S7COMMCTL_AUTO_RACK_SLOT
-- S7COMMCTL_LOCAL_TSAP
-- S7COMMCTL_REMOTE_TSAP
+- S7COMMCTL_AUTO_RACK_SLOT (`--auto-rack-slot`)
+- S7COMMCTL_BRUTE_RACK_SLOT (`--brute-rack-slot`)
+- S7COMMCTL_LOCAL_TSAP (`--local-tsap`)
+- S7COMMCTL_REMOTE_TSAP (`--remote-tsap`)
 
 Example:
 
