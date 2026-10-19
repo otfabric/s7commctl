@@ -1,5 +1,29 @@
 # s7commctl Releases
 
+## v0.2.9
+
+**Date:** 2026-10-19  
+**Previous release:** v0.2.8
+
+### Summary
+
+Dependency refresh: the S7 client library moves to **`go-s7comm` v0.7.5**. The README now matches `go.mod` and documents the connection-mode flags.
+
+### Highlights
+
+- **Dependency bump:** **`github.com/otfabric/go-s7comm`** `v0.7.3` → **`v0.7.5`**, which pulls **`go-cotp` v1.0.4** and **`go-tpkt` v1.0.1** (indirect). go-s7comm reports no S7 protocol or result-model changes in either release.
+- **README:** requirements say Go 1.25+ as in `go.mod`, the stale local `replace` note is gone, and `--auto-rack-slot`, `--brute-rack-slot`, `--local-tsap` and `--remote-tsap` are documented with their precedence and environment variables.
+
+### Toolchain
+
+- **Go:** `go 1.25` (see `go.mod`).
+
+### Upgrade notes
+
+- None. Commands, flags, output and exit codes are unchanged.
+
+---
+
 ## v0.2.8
 
 **Date:** 2026-07-21  
