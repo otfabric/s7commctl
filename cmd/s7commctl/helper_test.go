@@ -146,14 +146,13 @@ func (r cliResult) has(t *testing.T, subs ...string) cliResult {
 }
 
 // lacks fails the test if stdout contains one of subs.
-func (r cliResult) lacks(t *testing.T, subs ...string) cliResult {
+func (r cliResult) lacks(t *testing.T, subs ...string) {
 	t.Helper()
 	for _, s := range subs {
 		if strings.Contains(r.stdout, s) {
 			t.Errorf("stdout contains %q:\n%s", s, r.stdout)
 		}
 	}
-	return r
 }
 
 // exitCodeOf returns the code of an *ExitError and fails the test on anything else.
@@ -167,9 +166,9 @@ func exitCodeOf(t *testing.T, err error) int {
 }
 
 // wantUsage asserts exit code 2 and an error message containing msg.
-func (r cliResult) wantUsage(t *testing.T, msg string) cliResult {
+func (r cliResult) wantUsage(t *testing.T, msg string) {
 	t.Helper()
-	return r.wantCode(t, msg, func(code int) bool { return code == 2 }, "2 (usage)")
+	r.wantCode(t, msg, func(code int) bool { return code == 2 }, "2 (usage)")
 }
 
 // wantFindings asserts exit code 1: the operation ran and reports a non-success.

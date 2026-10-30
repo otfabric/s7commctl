@@ -2,7 +2,10 @@
 
 package validate
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestValidateArea(t *testing.T) {
 	validAreas := []string{"DB", "I", "Q", "M", "T", "C", "INPUTS", "OUTPUTS", "MERKERS", "COUNTER", "TIMER",
@@ -120,5 +123,111 @@ func TestIsPublicIP(t *testing.T) {
 	}
 	if !IsPublicIP("8.8.8.8") {
 		t.Fatal("expected public IP")
+	}
+}
+
+func TestParseHexBytes(t *testing.T) {
+	for _, tc := range []struct {
+		in      string
+		want    []byte
+		wantErr bool
+	}{
+		{in: "", want: []byte{}},
+		{in: "0x0102", want: []byte{1, 2}},
+		{in: "01 02", want: []byte{1, 2}},
+		{in: "fF", want: []byte{0xFF}},
+		{in: "abc", want: []byte{0x0A, 0xBC}},
+		{in: "xy", wantErr: true},
+		{in: "0x0g", wantErr: true},
+	} {
+		got, err := ParseHexBytes(tc.in)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("ParseHexBytes(%q) err = %v", tc.in, err)
+			continue
+		}
+		if !tc.wantErr && !bytes.Equal(got, tc.want) {
+			t.Errorf("ParseHexBytes(%q) = % X, want % X", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestParseTypedValue_Encodings(t *testing.T) {
+	for _, tc := range []struct {
+		value, typ string
+		want       []byte
+	}{
+		{"true", "bool", []byte{1}},
+		{"0", "BOOL", []byte{0}},
+		{"-2", "int", []byte{0xFF, 0xFE}},
+		{"0x0102", "int", []byte{1, 2}},
+		{"65536", "dint", []byte{0, 1, 0, 0}},
+		{"1", "real", []byte{0x3F, 0x80, 0, 0}},
+	} {
+		got, err := ParseTypedValue(tc.value, tc.typ)
+		if err != nil {
+			t.Errorf("ParseTypedValue(%q, %q): %v", tc.value, tc.typ, err)
+			continue
+		}
+		if !bytes.Equal(got, tc.want) {
+			t.Errorf("ParseTypedValue(%q, %q) = % X, want % X", tc.value, tc.typ, got, tc.want)
+		}
+	}
+}
+
+func TestParseTypedValue_String(t *testing.T) {
+	got, err := ParseTypedValue("ok", "string")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("ok")) {
+		t.Fatalf("encoded string % X does not hold the text", got)
+	}
+}
+
+func TestParseTypedValue_OutOfRange(t *testing.T) {
+	for _, tc := range [][2]string{
+		{"maybe", "bool"}, {"40000", "int"}, {"x", "int"}, {"3000000000", "dint"}, {"x", "dint"},
+		{"1e99", "real"}, {"x", "real"}, {"1", "lreal"},
+	} {
+		if _, err := ParseTypedValue(tc[0], tc[1]); err == nil {
+			t.Errorf("ParseTypedValue(%q, %q) accepted", tc[0], tc[1])
+		}
+	}
+}
+
+func TestIsPublicIP_Ranges(t *testing.T) {
+	for ip, want := range map[string]bool{
+		"":             false,
+		"garbage":      false,
+		"127.0.0.1":    false,
+		"169.254.1.1":  false,
+		"10.1.2.3":     false,
+		"172.16.0.1":   false,
+		"172.31.255.1": false,
+		"172.32.0.1":   true,
+		"192.168.1.1":  false,
+		"192.169.1.1":  true,
+		"8.8.8.8":      true,
+		"::1":          false,
+		"fe80::1":      false,
+		"fd00::1":      false,
+		"2001:4860::1": true,
+	} {
+		if got := IsPublicIP(ip); got != want {
+			t.Errorf("IsPublicIP(%q) = %v, want %v", ip, got, want)
+		}
+	}
+}
+
+func TestValidateAreaAndBlockType_Aliases(t *testing.T) {
+	for _, area := range []string{"input", "OUTPUTS", "merker", "COUNTER", "timer", "DR", "S7200AO", "IEC_C200", "IEC_T200", "IEC_COUNTER_200", "IEC_TIMER_200"} {
+		if _, err := ValidateArea(area); err != nil {
+			t.Errorf("ValidateArea(%q): %v", area, err)
+		}
+	}
+	for _, bt := range []string{"ob", "fc", "fb", "sfc", "sfb"} {
+		if _, err := ValidateBlockType(bt); err != nil {
+			t.Errorf("ValidateBlockType(%q): %v", bt, err)
+		}
 	}
 }
