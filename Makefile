@@ -1,4 +1,4 @@
-.PHONY: help all run fmt lint lint-ci vet test check quality tidy build build-nocheck build-all release-all install clean coverage cover
+.PHONY: help all run fmt lint lint-ci vet test check quality tidy build build-nocheck build-all release-all install clean coverage cover vuln e2e
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -61,7 +61,7 @@ test: ## Run all tests on project packages
 	@go clean -testcache
 	@go test -count=1 -race ./...
 
-check: fmt lint lint-ci vet test coverage ## Run all checks (format, lint, vet, test, coverage)
+check: fmt lint lint-ci vet vuln test coverage ## Run all checks (format, lint, vet, vulnerability scan, test, coverage)
 
 quality: check ## Alias for full quality gate
 
@@ -120,6 +120,14 @@ release-all: build-all ## Package the build binaries into tar.gz archives for al
 			tar czf $(RELEASE_DIR)/$$bin.tar.gz -C $(RELEASE_DIR) $$bin; \
 		fi; \
 	done
+
+vuln: ## Scan the module and its dependencies for known vulnerabilities (govulncheck)
+	@govulncheck ./...
+
+e2e: ## Build the binary and run the e2e suite against it
+	@mkdir -p bin
+	@go build $(LDFLAGS) -o bin/s7commctl $(APP_SRC)
+	@S7COMMCTL_E2E_BIN=$(CURDIR)/bin/s7commctl S7COMMCTL_E2E_VERSION=$(VERSION) go test -count=1 -tags=e2e ./e2e/...
 
 install: build ## Install the built binary to /usr/local/bin
 	@echo "Installing $(APP_NAME) to /usr/local/bin"
