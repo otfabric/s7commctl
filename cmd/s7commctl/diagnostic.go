@@ -67,7 +67,7 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if diagnosticConfig.Format == output.FormatJSON {
+	if strings.ToLower(diagnosticConfig.Format) == output.FormatJSON {
 		port := diagnosticConfig.Port
 		if port == 0 {
 			port = 102

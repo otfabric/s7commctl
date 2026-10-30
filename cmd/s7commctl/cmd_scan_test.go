@@ -659,6 +659,16 @@ func TestDiscover_NothingFound(t *testing.T) {
 	}
 }
 
+func TestDiscover_QuietNothingFoundIsSilent(t *testing.T) {
+	args := []string{"discover", "--cidr", "127.0.0.1/32", "--timeout", "200"}
+	for _, extra := range [][]string{{"--quiet"}, {"--format", "quiet"}, {"--quiet", "--format", "json"}} {
+		r := runCLI(t, append(args, extra...)...).ok(t)
+		if r.stdout != "" {
+			t.Errorf("%v: stdout = %q, want nothing", extra, r.stdout)
+		}
+	}
+}
+
 func TestDiscover_Cancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

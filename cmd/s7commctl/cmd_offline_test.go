@@ -25,8 +25,13 @@ import (
 // returns a connection to it once it listens, with a func waiting for its result.
 func startServer(t *testing.T, addr string, args ...string) (net.Conn, func() cliResult) {
 	t.Helper()
+	return startServerContext(t, context.Background(), addr, args...)
+}
+
+func startServerContext(t *testing.T, ctx context.Context, addr string, args ...string) (net.Conn, func() cliResult) {
+	t.Helper()
 	done := make(chan cliResult, 1)
-	go func() { done <- runCLI(t, args...) }()
+	go func() { done <- runCLIContext(t, ctx, args...) }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -54,6 +59,59 @@ func startServer(t *testing.T, addr string, args ...string) (net.Conn, func() cl
 func freeAddr(t *testing.T) string {
 	t.Helper()
 	return net.JoinHostPort("127.0.0.1", closedPort(t))
+}
+
+func wantInterrupted(t *testing.T, r cliResult) {
+	t.Helper()
+	r.wantCode(t, "context canceled", func(code int) bool { return code == codeInterrupted }, "130 (interrupted)")
+}
+
+func TestSniffAndReplay_CancelWhileWaitingForClient(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "script.hex")
+	if err := os.WriteFile(script, []byte("0300000702f080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"sniff"}, {"replay", "--script", script}} {
+		t.Run(args[0], func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			time.AfterFunc(50*time.Millisecond, cancel)
+			wantInterrupted(t, runCLIContext(t, ctx, append(args, "--listen", freeAddr(t))...))
+		})
+	}
+}
+
+func TestSniffAndReplay_CancelWhileReading(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "script.hex")
+	if err := os.WriteFile(script, []byte("0300000702f080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"sniff"}, {"replay", "--script", script}} {
+		t.Run(args[0], func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			addr := freeAddr(t)
+			_, wait := startServerContext(t, ctx, addr, append(args, "--listen", addr)...)
+			time.Sleep(50 * time.Millisecond) // let it accept and block in the read
+			cancel()
+			wantInterrupted(t, wait())
+		})
+	}
+}
+
+func TestAcceptConn_ClosedListener(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = ln.Close()
+	_, err = acceptConn(context.Background(), ln)
+	if err == nil || !strings.Contains(err.Error(), "accept failed") {
+		t.Fatalf("err = %v, want accept failed", err)
+	}
+	if code := exitCodeOf(t, err); code != codeTransport {
+		t.Errorf("exit code %d, want %d", code, codeTransport)
+	}
 }
 
 func TestSniff_DecodesFramesUntilClose(t *testing.T) {

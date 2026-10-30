@@ -30,6 +30,18 @@ Exit codes converge on the organisation table (ADR-0006). **Scripts that test fo
 
 - `S7COMMCTL_OUTPUT_FORMAT` is accepted besides `S7COMMCTL_FORMAT`, the canonical name, which wins.
 
+### Fixed
+
+- `discover`: `--rack-min`, `--rack-max`, `--slot-min`, `--slot-max` and their environment variables had no effect, because the profile always overwrote them. A bound set explicitly now overrides `--profile`. The defaults shown in `--help` are now those of the `standard` profile, the range actually scanned. An empty or unaddressable range exits 2.
+- `discover --quiet` prints nothing when nothing is found, instead of `No S7 devices found`.
+- `fingerprint`: the CPU generation is read from the model number, so `CPU 315-2` gives 300 instead of 0, and order numbers such as `6ES7 315-...` count.
+- `diagnostic` honours `--format JSON` in capitals on success.
+- `sniff` and `replay` stop on SIGINT and SIGTERM with exit 130, while waiting for a client and while reading.
+- `pcap-decode`: little-endian captures no longer fail with `unsupported pcap linktype 16777216`, because the byte-order cases were swapped.
+- `pcap-decode`: packet lengths above 262144 are refused, instead of sizing an allocation of up to 4 GiB.
+- `pcap-decode`: each TCP direction has its own reassembly buffer, so an interleaved response no longer corrupts a split frame.
+- `pcap-decode`: a TPKT frame is checked for its version before its length, so noise cannot stall a direction.
+
 ---
 
 ## v0.2.9

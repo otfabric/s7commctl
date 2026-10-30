@@ -371,6 +371,12 @@ func TestDiagnostic_Formats(t *testing.T) {
 	}
 }
 
+func TestDiagnostic_FormatIsCaseInsensitive(t *testing.T) {
+	p := newFakePLC(t)
+	m := runCLI(t, p.args("diagnostic", "--format", "JSON")...).ok(t).jsonOut(t)
+	wantField(t, m, "RUN", "result", "cpu_state")
+}
+
 func TestDiagnostic_ReadFailure(t *testing.T) {
 	p := newFakePLC(t)
 	p.szl = func(uint16, uint16) fakeReply { return fakeReply{ret: 0x05} }
@@ -448,6 +454,26 @@ func TestClassifyCPUGeneration(t *testing.T) {
 		{"", "CPU 400", 400},
 		{"", "CPU 300", 300},
 		{"", "LOGO", 0},
+		{"", "CPU 315-2 PN/DP", 300},
+		{"", "CPU315-2DP", 300},
+		{"", "CPU 319F-3 PN/DP", 300},
+		{"", "CPU 412-2", 400},
+		{"", "CPU 416-3 PN/DP", 400},
+		{"", "CPU 1214C DC/DC/DC", 1200},
+		{"", "cpu 1516-3 pn/dp", 1500},
+		{"", "CPU 1512SP-1 PN", 1500},
+		{"6ES7 315-2EH14-0AB0", "", 300},
+		{"6ES7315-2EH14-0AB0", "", 300},
+		{"6ES7 412-2EK07-0AB0", "", 400},
+		{"6ES7 516-3AN02-0AB0", "", 1500},
+		{"6ES7 315-2EH14-0AB0", "N/A", 300},
+		{"6ES7 412-2EK07-0AB0", "CPU 224", 400}, // a model outside the families falls through
+		{"6ES7 214-1AG40-0XB0", "", 0},          // S7-200 or S7-1200: not decidable
+		{"", "CPU 224", 0},
+		{"", "CPU 3150", 0},
+		{"", "ET200S 1300", 0}, // digits alone are not a model
+		{"6ES7 300-1AA00", "", 0},
+		{"", "", 0},
 	} {
 		if got := classifyCPUGeneration(tc.order, tc.cpu); got != tc.want {
 			t.Errorf("classifyCPUGeneration(%q, %q) = %d, want %d", tc.order, tc.cpu, got, tc.want)

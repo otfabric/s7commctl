@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/otfabric/go-s7comm/client"
@@ -106,18 +108,42 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+var (
+	// cpuModelRE finds the model number in "CPU 315-2 PN/DP", "S7-1200", "CPU1214C".
+	cpuModelRE = regexp.MustCompile(`\b(?:CPU|S7)[ -]*(\d{3,4})`)
+	// orderFamilyRE finds the digits after the Siemens article prefix: 6ES7 315-2EH14-0AB0.
+	orderFamilyRE = regexp.MustCompile(`\b6ES7[ -]*(\d{2})`)
+)
+
+// classifyCPUGeneration returns 300, 400, 1200 or 1500, or 0 when unknown. The
+// model number decides first. In order numbers 6ES7 21x is left unknown: S7-200
+// and S7-1200 both use it.
 func classifyCPUGeneration(orderNumber, cpuType string) int {
-	candidate := strings.ToUpper(orderNumber + " " + cpuType)
-	switch {
-	case strings.Contains(candidate, "1500"):
-		return 1500
-	case strings.Contains(candidate, "1200"):
-		return 1200
-	case strings.Contains(candidate, "400"):
-		return 400
-	case strings.Contains(candidate, "300"):
-		return 300
-	default:
-		return 0
+	for _, text := range []string{cpuType, orderNumber} {
+		m := cpuModelRE.FindStringSubmatch(strings.ToUpper(text))
+		if m == nil {
+			continue
+		}
+		switch model, _ := strconv.Atoi(m[1]); {
+		case model >= 1500 && model < 1600:
+			return 1500
+		case model >= 1200 && model < 1300:
+			return 1200
+		case model >= 400 && model < 500:
+			return 400
+		case model >= 300 && model < 400:
+			return 300
+		}
 	}
+	if m := orderFamilyRE.FindStringSubmatch(strings.ToUpper(orderNumber)); m != nil {
+		switch m[1] {
+		case "51":
+			return 1500
+		case "41":
+			return 400
+		case "31":
+			return 300
+		}
+	}
+	return 0
 }

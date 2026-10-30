@@ -202,6 +202,8 @@ Advanced rack/slot probing:
 s7commctl discover --cidr 192.168.1.0/24 --rack-min 0 --rack-max 3 --slot-min 0 --slot-max 5
 ```
 
+`--profile` sets the range: `quick` (rack 0, slot 1-2), `standard` (rack 0-1, slot 0-3, the default) or `full` (rack 0-3, slot 0-5). A bound set with `--rack-min`, `--rack-max`, `--slot-min`, `--slot-max` or their environment variables overrides the profile for that bound only. An empty range, or a rack or slot S7 cannot address, is a usage error.
+
 For script-friendly output (one IP per line), use `--quiet` or `--format quiet`; both are supported intentionally.
 
 ### 2. Determine valid rack/slot values

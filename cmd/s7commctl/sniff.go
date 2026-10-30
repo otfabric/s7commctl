@@ -3,6 +3,7 @@
 package s7commctl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -47,11 +48,13 @@ func runSniff(cmd *cobra.Command, args []string) error {
 	defer func() { _ = ln.Close() }()
 
 	_, _ = fmt.Fprintf(os.Stdout, "sniff listening on %s\n", snfConfig.Listen)
-	conn, err := ln.Accept()
+	conn, err := acceptConn(cmd.Context(), ln)
 	if err != nil {
-		return ExitConnect(fmt.Errorf("accept failed: %w", err))
+		return err
 	}
 	defer func() { _ = conn.Close() }()
+	stop := context.AfterFunc(cmd.Context(), func() { _ = conn.Close() })
+	defer stop()
 
 	frames := 0
 	for snfConfig.MaxFrame == 0 || frames < snfConfig.MaxFrame {
@@ -60,6 +63,9 @@ func runSniff(cmd *cobra.Command, args []string) error {
 		}
 		frame, rerr := readTPKTFrame(conn)
 		if rerr != nil {
+			if cerr := cmd.Context().Err(); cerr != nil {
+				return ExitRuntime(cerr)
+			}
 			_ = writeFrameEvent(os.Stdout, snfConfig.Format, conn.RemoteAddr().String(), nil, rerr)
 			if errors.Is(rerr, io.EOF) || errors.Is(rerr, net.ErrClosed) {
 				return nil
