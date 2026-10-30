@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"strings"
 	"testing"
 )
 
@@ -99,6 +100,20 @@ func TestReadPCAPPackets_ByteOrder(t *testing.T) {
 				t.Fatalf("packets = % X, want one frame % X", packets, frame)
 			}
 		})
+	}
+}
+
+// TestReadPCAPPackets_OversizedPacket: the length field of a packet header is
+// untrusted input and must be refused before it sizes an allocation.
+func TestReadPCAPPackets_OversizedPacket(t *testing.T) {
+	blob := buildPCAP(nil)
+	hdr := make([]byte, 16)
+	binary.LittleEndian.PutUint32(hdr[8:12], 0xFFFFFFFF)
+	blob = append(blob, hdr...)
+
+	_, err := readPCAPPackets(bytes.NewReader(blob))
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("err = %v, want a length error", err)
 	}
 }
 

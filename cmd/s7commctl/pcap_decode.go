@@ -87,6 +87,9 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// pcapMaxPacketLength is the largest captured length libpcap accepts (MAXIMUM_SNAPLEN).
+const pcapMaxPacketLength = 262144
+
 type tcpMeta struct {
 	SrcIP   string
 	DstIP   string
@@ -131,6 +134,9 @@ func readPCAPPackets(r io.Reader) ([][]byte, error) {
 		incl := order.Uint32(ph[8:12])
 		if incl == 0 {
 			continue
+		}
+		if incl > pcapMaxPacketLength {
+			return nil, fmt.Errorf("pcap packet length %d exceeds %d", incl, pcapMaxPacketLength)
 		}
 		pkt := make([]byte, incl)
 		if _, err := io.ReadFull(r, pkt); err != nil {
