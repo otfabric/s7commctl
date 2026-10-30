@@ -100,13 +100,15 @@ func readPCAPPackets(r io.Reader) ([][]byte, error) {
 		return nil, fmt.Errorf("read pcap global header: %w", err)
 	}
 
+	// The writer stores 0xa1b2c3d4 in its native order: read back little-endian,
+	// it comes out as written for a little-endian file and swapped otherwise.
 	magic := binary.LittleEndian.Uint32(gh[0:4])
 	var order binary.ByteOrder
 	switch magic {
 	case 0xa1b2c3d4:
-		order = binary.BigEndian
-	case 0xd4c3b2a1:
 		order = binary.LittleEndian
+	case 0xd4c3b2a1:
+		order = binary.BigEndian
 	default:
 		return nil, fmt.Errorf("unsupported pcap magic: 0x%08x", magic)
 	}

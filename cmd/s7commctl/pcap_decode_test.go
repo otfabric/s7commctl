@@ -69,9 +69,42 @@ func TestReadPCAPPackets(t *testing.T) {
 	}
 }
 
+// TestReadPCAPPackets_ByteOrder uses the bytes a capture tool writes: the magic
+// 0xa1b2c3d4 in the writer's native order, so d4 c3 b2 a1 on little-endian hosts.
+func TestReadPCAPPackets_ByteOrder(t *testing.T) {
+	frame := []byte{0xAA, 0xBB, 0xCC}
+	for _, tc := range []struct {
+		name  string
+		magic []byte
+		order binary.ByteOrder
+	}{
+		{"little-endian capture", []byte{0xD4, 0xC3, 0xB2, 0xA1}, binary.LittleEndian},
+		{"big-endian capture", []byte{0xA1, 0xB2, 0xC3, 0xD4}, binary.BigEndian},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var b bytes.Buffer
+			_, _ = b.Write(tc.magic)
+			_, _ = b.Write(make([]byte, 16)) // version, thiszone, sigfigs, snaplen
+			_ = binary.Write(&b, tc.order, uint32(1))
+			_, _ = b.Write(make([]byte, 8)) // timestamp
+			_ = binary.Write(&b, tc.order, uint32(len(frame)))
+			_ = binary.Write(&b, tc.order, uint32(len(frame)))
+			_, _ = b.Write(frame)
+
+			packets, err := readPCAPPackets(&b)
+			if err != nil {
+				t.Fatalf("readPCAPPackets: %v", err)
+			}
+			if len(packets) != 1 || !bytes.Equal(packets[0], frame) {
+				t.Fatalf("packets = % X, want one frame % X", packets, frame)
+			}
+		})
+	}
+}
+
 func buildPCAP(pkts [][]byte) []byte {
 	var b bytes.Buffer
-	_ = binary.Write(&b, binary.LittleEndian, uint32(0xd4c3b2a1))
+	_ = binary.Write(&b, binary.LittleEndian, uint32(0xa1b2c3d4))
 	_ = binary.Write(&b, binary.LittleEndian, uint16(2))
 	_ = binary.Write(&b, binary.LittleEndian, uint16(4))
 	_ = binary.Write(&b, binary.LittleEndian, int32(0))
