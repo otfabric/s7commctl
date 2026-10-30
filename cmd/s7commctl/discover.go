@@ -57,20 +57,26 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	printDiscovered(found, cfg)
+	return nil
+}
+
+// printDiscovered writes the S7 devices found to stdout in cfg.Format.
+func printDiscovered(found []client.DiscoverResult, cfg config.DiscoverConfig) {
 	if len(found) == 0 {
 		if strings.ToLower(cfg.Format) == output.FormatJSON {
 			discoverResultsJSON(found) // emit [] for scriptability
 		} else {
 			fmt.Println("No S7 devices found")
 		}
-		return nil
+		return
 	}
 
 	if cfg.Quiet || strings.ToLower(cfg.Format) == "quiet" {
 		for _, d := range found {
 			_, _ = fmt.Fprintln(os.Stdout, d.IP)
 		}
-		return nil
+		return
 	}
 
 	switch strings.ToLower(cfg.Format) {
@@ -87,7 +93,6 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 			_, _ = fmt.Fprintf(os.Stdout, "%s rack=%d slot=%d pdu=%d tsap=%s\n", d.IP, d.Rack, d.Slot, d.PDUSize, d.TSAP)
 		}
 	}
-	return nil
 }
 
 func discoverResultsJSON(results []client.DiscoverResult) {
