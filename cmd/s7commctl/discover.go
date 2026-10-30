@@ -3,9 +3,11 @@
 package s7commctl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/otfabric/go-s7comm/client"
@@ -17,6 +19,19 @@ import (
 )
 
 var discoverConfig = config.DefaultDiscoverConfig()
+
+// discoverHosts runs the scan. client.Discover always dials port 102, which a
+// test cannot bind, so the tests replace it to see the options that reach it.
+var discoverHosts = func(ctx context.Context, cfg config.DiscoverConfig) ([]client.DiscoverResult, error) {
+	return client.Discover(
+		ctx,
+		cfg.CIDR,
+		client.WithDiscoverTimeout(cfg.Timeout),
+		client.WithDiscoverParallel(cfg.Parallel),
+		client.WithDiscoverRackSlotRange(cfg.RackMin, cfg.RackMax, cfg.SlotMin, cfg.SlotMax),
+		client.WithDiscoverRateLimit(cfg.RateMS),
+	)
+}
 
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
@@ -35,17 +50,12 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		return ExitUsage(err)
 	}
 
-	cfg := discoverConfig
-	applyDiscoverProfile(&cfg)
+	cfg := resolveDiscoverConfig(cmd, discoverConfig)
+	if err := validateDiscoverRange(cfg); err != nil {
+		return ExitUsage(err)
+	}
 
-	results, err := client.Discover(
-		cmd.Context(),
-		cfg.CIDR,
-		client.WithDiscoverTimeout(cfg.Timeout),
-		client.WithDiscoverParallel(cfg.Parallel),
-		client.WithDiscoverRackSlotRange(cfg.RackMin, cfg.RackMax, cfg.SlotMin, cfg.SlotMax),
-		client.WithDiscoverRateLimit(cfg.RateMS),
-	)
+	results, err := discoverHosts(cmd.Context(), cfg)
 	if err != nil {
 		return ExitRuntime(err)
 	}
@@ -63,7 +73,11 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 
 // printDiscovered writes the S7 devices found to stdout in cfg.Format.
 func printDiscovered(found []client.DiscoverResult, cfg config.DiscoverConfig) {
+	quiet := cfg.Quiet || strings.ToLower(cfg.Format) == "quiet"
 	if len(found) == 0 {
+		if quiet {
+			return
+		}
 		if strings.ToLower(cfg.Format) == output.FormatJSON {
 			discoverResultsJSON(found) // emit [] for scriptability
 		} else {
@@ -72,7 +86,7 @@ func printDiscovered(found []client.DiscoverResult, cfg config.DiscoverConfig) {
 		return
 	}
 
-	if cfg.Quiet || strings.ToLower(cfg.Format) == "quiet" {
+	if quiet {
 		for _, d := range found {
 			_, _ = fmt.Fprintln(os.Stdout, d.IP)
 		}
@@ -117,6 +131,47 @@ func discoverResultsJSON(results []client.DiscoverResult) {
 	}
 	data, _ := json.MarshalIndent(out, "", "  ")
 	_, _ = fmt.Fprintln(os.Stdout, string(data))
+}
+
+// resolveDiscoverConfig applies the profile to cfg, then restores each range
+// bound the user set by flag or environment: those beat the profile.
+func resolveDiscoverConfig(cmd *cobra.Command, cfg config.DiscoverConfig) config.DiscoverConfig {
+	resolved := cfg
+	applyDiscoverProfile(&resolved)
+	for _, b := range []struct {
+		flag, env string
+		dst       *int
+		value     int
+	}{
+		{"rack-min", "S7COMMCTL_RACK_MIN", &resolved.RackMin, cfg.RackMin},
+		{"rack-max", "S7COMMCTL_RACK_MAX", &resolved.RackMax, cfg.RackMax},
+		{"slot-min", "S7COMMCTL_SLOT_MIN", &resolved.SlotMin, cfg.SlotMin},
+		{"slot-max", "S7COMMCTL_SLOT_MAX", &resolved.SlotMax, cfg.SlotMax},
+	} {
+		// config.LoadFromEnv skips a value that is not a number.
+		_, envErr := strconv.Atoi(os.Getenv(b.env))
+		if cmd.Flags().Changed(b.flag) || envErr == nil {
+			*b.dst = b.value
+		}
+	}
+	return resolved
+}
+
+// validateDiscoverRange rejects a range that is empty or outside what S7 addresses.
+func validateDiscoverRange(cfg config.DiscoverConfig) error {
+	if err := validate.ValidateRackSlot(cfg.RackMin, cfg.SlotMin); err != nil {
+		return err
+	}
+	if err := validate.ValidateRackSlot(cfg.RackMax, cfg.SlotMax); err != nil {
+		return err
+	}
+	if cfg.RackMin > cfg.RackMax {
+		return fmt.Errorf("rack range is empty: min %d is above max %d", cfg.RackMin, cfg.RackMax)
+	}
+	if cfg.SlotMin > cfg.SlotMax {
+		return fmt.Errorf("slot range is empty: min %d is above max %d", cfg.SlotMin, cfg.SlotMax)
+	}
+	return nil
 }
 
 func applyDiscoverProfile(cfg *config.DiscoverConfig) {

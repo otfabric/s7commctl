@@ -3,9 +3,11 @@
 package s7commctl
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/otfabric/go-s7comm/wire"
 )
@@ -16,6 +18,20 @@ const (
 	tpktMinPacketLength = 7
 	tpktMaxPacketLength = 65535
 )
+
+// acceptConn waits for one client. Cancelling ctx ends the wait.
+func acceptConn(ctx context.Context, ln net.Listener) (net.Conn, error) {
+	stop := context.AfterFunc(ctx, func() { _ = ln.Close() })
+	defer stop()
+	conn, err := ln.Accept()
+	if err != nil {
+		if cerr := ctx.Err(); cerr != nil {
+			return nil, ExitRuntime(cerr)
+		}
+		return nil, ExitConnect(fmt.Errorf("accept failed: %w", err))
+	}
+	return conn, nil
+}
 
 // readTPKTFrame reads one TPKT frame from r and returns the full frame (header + payload).
 func readTPKTFrame(r io.Reader) ([]byte, error) {

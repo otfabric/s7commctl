@@ -107,18 +107,18 @@ type DiscoverConfig struct {
 	CIDR     string `flag:"cidr" env:"S7COMMCTL_CIDR" desc:"CIDR range to scan"`
 	Timeout  int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout per host in ms"`
 	Parallel int    `flag:"parallel" env:"S7COMMCTL_PARALLEL" desc:"Number of parallel probes"`
-	RackMin  int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe"`
-	RackMax  int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe"`
-	SlotMin  int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe"`
-	SlotMax  int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe"`
-	Profile  string `flag:"profile" env:"S7COMMCTL_DISCOVER_PROFILE" desc:"Probe profile: quick, standard, full"`
+	RackMin  int    `flag:"rack-min" env:"S7COMMCTL_RACK_MIN" desc:"Minimum rack to probe, overrides --profile"`
+	RackMax  int    `flag:"rack-max" env:"S7COMMCTL_RACK_MAX" desc:"Maximum rack to probe, overrides --profile"`
+	SlotMin  int    `flag:"slot-min" env:"S7COMMCTL_SLOT_MIN" desc:"Minimum slot to probe, overrides --profile"`
+	SlotMax  int    `flag:"slot-max" env:"S7COMMCTL_SLOT_MAX" desc:"Maximum slot to probe, overrides --profile"`
+	Profile  string `flag:"profile" env:"S7COMMCTL_DISCOVER_PROFILE" desc:"Probe profile: quick (rack 0, slot 1-2), standard (rack 0-1, slot 0-3), full (rack 0-3, slot 0-5)"`
 	RateMS   int    `flag:"rate-ms" env:"S7COMMCTL_RATE_MS" desc:"Delay between rack/slot probes in ms"`
 	Format   string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
 	Quiet    bool   `flag:"quiet" env:"S7COMMCTL_QUIET" desc:"Only print discovered IP addresses (one per line)"`
 }
 
 func DefaultDiscoverConfig() DiscoverConfig {
-	return DiscoverConfig{Timeout: 2000, Parallel: 10, RackMin: 0, RackMax: 3, SlotMin: 0, SlotMax: 5, Profile: "standard", RateMS: 0, Format: "table"}
+	return DiscoverConfig{Timeout: 2000, Parallel: 10, RackMin: 0, RackMax: 1, SlotMin: 0, SlotMax: 3, Profile: "standard", RateMS: 0, Format: "table"}
 }
 
 // IdentifyConfig for identify command

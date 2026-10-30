@@ -23,7 +23,7 @@ This repository follows **otfabric/engineering policy 1.0**, profile **cli** (`.
 
 1. Exit codes are a public contract: changing a code is a breaking change with a RELEASE.md note.
 2. Writes require `--dangerous`. Read-only is the default.
-3. Never lower the CI `coverage-min`, add lint suppressions, or skip or delete tests to make CI pass. Coverage is well below the CLI floor of 85 %; raise it, never lower it.
+3. Never lower the CI `coverage-min`, add lint suppressions, or skip or delete tests to make CI pass. Coverage is above the CLI floor of 85 % and CI enforces 90 %; raise it, never lower it.
 4. go-s7comm is pinned to a released tag; no `replace` directives.
 
 ## Commands

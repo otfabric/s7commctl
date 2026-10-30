@@ -4,6 +4,7 @@ package s7commctl
 
 import (
 	"bufio"
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -56,11 +57,13 @@ func runReplay(cmd *cobra.Command, args []string) error {
 	defer func() { _ = ln.Close() }()
 
 	_, _ = fmt.Fprintf(os.Stdout, "replay listening on %s\n", rplConfig.Listen)
-	conn, err := ln.Accept()
+	conn, err := acceptConn(cmd.Context(), ln)
 	if err != nil {
-		return ExitConnect(fmt.Errorf("accept failed: %w", err))
+		return err
 	}
 	defer func() { _ = conn.Close() }()
+	stop := context.AfterFunc(cmd.Context(), func() { _ = conn.Close() })
+	defer stop()
 
 	idx := 0
 	for {
@@ -69,6 +72,9 @@ func runReplay(cmd *cobra.Command, args []string) error {
 		}
 		frame, rerr := readTPKTFrame(conn)
 		if rerr != nil {
+			if cerr := cmd.Context().Err(); cerr != nil {
+				return ExitRuntime(cerr)
+			}
 			_ = writeFrameEvent(os.Stdout, rplConfig.Format, conn.RemoteAddr().String(), nil, rerr)
 			if errors.Is(rerr, io.EOF) || errors.Is(rerr, net.ErrClosed) {
 				return nil
