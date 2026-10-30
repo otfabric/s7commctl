@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"
@@ -66,18 +65,18 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		flow := flowKey(meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
-		buffers[flow] = append(buffers[flow], payload...)
+		// One buffer per direction: each direction of a connection is its own byte stream.
+		source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
+		buffers[source] = append(buffers[source], payload...)
 		for {
-			frame, rest, ok := popTPKTFrame(buffers[flow])
+			frame, rest, ok := popTPKTFrame(buffers[source])
 			if !ok {
-				buffers[flow] = rest
+				buffers[source] = rest
 				break
 			}
-			buffers[flow] = rest
+			buffers[source] = rest
 
 			summary, derr := inspectTPKTFrame(frame)
-			source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
 			if werr := writeFrameEvent(os.Stdout, pdcConfig.Format, source, summary, derr); werr != nil {
 				return ExitRuntime(werr)
 			}
@@ -86,6 +85,9 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+
+// pcapMaxPacketLength is the largest captured length libpcap accepts (MAXIMUM_SNAPLEN).
+const pcapMaxPacketLength = 262144
 
 type tcpMeta struct {
 	SrcIP   string
@@ -100,13 +102,15 @@ func readPCAPPackets(r io.Reader) ([][]byte, error) {
 		return nil, fmt.Errorf("read pcap global header: %w", err)
 	}
 
+	// The writer stores 0xa1b2c3d4 in its native order: read back little-endian,
+	// it comes out as written for a little-endian file and swapped otherwise.
 	magic := binary.LittleEndian.Uint32(gh[0:4])
 	var order binary.ByteOrder
 	switch magic {
 	case 0xa1b2c3d4:
-		order = binary.BigEndian
-	case 0xd4c3b2a1:
 		order = binary.LittleEndian
+	case 0xd4c3b2a1:
+		order = binary.BigEndian
 	default:
 		return nil, fmt.Errorf("unsupported pcap magic: 0x%08x", magic)
 	}
@@ -129,6 +133,9 @@ func readPCAPPackets(r io.Reader) ([][]byte, error) {
 		incl := order.Uint32(ph[8:12])
 		if incl == 0 {
 			continue
+		}
+		if incl > pcapMaxPacketLength {
+			return nil, fmt.Errorf("pcap packet length %d exceeds %d", incl, pcapMaxPacketLength)
 		}
 		pkt := make([]byte, incl)
 		if _, err := io.ReadFull(r, pkt); err != nil {
@@ -181,19 +188,14 @@ func parseEthernetIPv4TCP(packet []byte) (tcpMeta, []byte, bool) {
 	return tcpMeta{SrcIP: srcIP, DstIP: dstIP, SrcPort: srcPort, DstPort: dstPort}, tcp[off:], true
 }
 
-func flowKey(src string, srcPort int, dst string, dstPort int) string {
-	k1 := fmt.Sprintf("%s:%d-%s:%d", src, srcPort, dst, dstPort)
-	k2 := fmt.Sprintf("%s:%d-%s:%d", dst, dstPort, src, srcPort)
-	if strings.Compare(k1, k2) <= 0 {
-		return k1
-	}
-	return k2
-}
-
 // popTPKTFrame pops one TPKT frame from buf.
 // Returns (frame, remainder, true) or (nil, buf, false) if no complete frame.
 func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 	for len(buf) >= tpktHeaderLength {
+		if buf[0] != tpktVersion {
+			buf = buf[1:]
+			continue
+		}
 		totalLen := int(binary.BigEndian.Uint16(buf[2:4]))
 		if totalLen < tpktMinPacketLength || totalLen > tpktMaxPacketLength {
 			buf = buf[1:]
@@ -202,12 +204,7 @@ func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 		if len(buf) < totalLen {
 			return nil, buf, false
 		}
-		pkt := buf[:totalLen]
-		if _, err := peelTPKT(pkt); err != nil {
-			buf = buf[1:]
-			continue
-		}
-		return bytes.Clone(pkt), bytes.Clone(buf[totalLen:]), true
+		return bytes.Clone(buf[:totalLen]), bytes.Clone(buf[totalLen:]), true
 	}
 	return nil, buf, false
 }

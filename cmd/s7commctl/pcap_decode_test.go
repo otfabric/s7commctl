@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -69,9 +72,96 @@ func TestReadPCAPPackets(t *testing.T) {
 	}
 }
 
+// TestReadPCAPPackets_ByteOrder uses the bytes a capture tool writes: the magic
+// 0xa1b2c3d4 in the writer's native order, so d4 c3 b2 a1 on little-endian hosts.
+func TestReadPCAPPackets_ByteOrder(t *testing.T) {
+	frame := []byte{0xAA, 0xBB, 0xCC}
+	for _, tc := range []struct {
+		name  string
+		magic []byte
+		order binary.ByteOrder
+	}{
+		{"little-endian capture", []byte{0xD4, 0xC3, 0xB2, 0xA1}, binary.LittleEndian},
+		{"big-endian capture", []byte{0xA1, 0xB2, 0xC3, 0xD4}, binary.BigEndian},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var b bytes.Buffer
+			_, _ = b.Write(tc.magic)
+			_, _ = b.Write(make([]byte, 16)) // version, thiszone, sigfigs, snaplen
+			_ = binary.Write(&b, tc.order, uint32(1))
+			_, _ = b.Write(make([]byte, 8)) // timestamp
+			_ = binary.Write(&b, tc.order, uint32(len(frame)))
+			_ = binary.Write(&b, tc.order, uint32(len(frame)))
+			_, _ = b.Write(frame)
+
+			packets, err := readPCAPPackets(&b)
+			if err != nil {
+				t.Fatalf("readPCAPPackets: %v", err)
+			}
+			if len(packets) != 1 || !bytes.Equal(packets[0], frame) {
+				t.Fatalf("packets = % X, want one frame % X", packets, frame)
+			}
+		})
+	}
+}
+
+// TestReadPCAPPackets_OversizedPacket: the length field of a packet header is
+// untrusted input and must be refused before it sizes an allocation.
+func TestReadPCAPPackets_OversizedPacket(t *testing.T) {
+	blob := buildPCAP(nil)
+	hdr := make([]byte, 16)
+	binary.LittleEndian.PutUint32(hdr[8:12], 0xFFFFFFFF)
+	blob = append(blob, hdr...)
+
+	_, err := readPCAPPackets(bytes.NewReader(blob))
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("err = %v, want a length error", err)
+	}
+}
+
+// TestPcapDecode_ReassemblesAcrossPackets: a frame split over two segments survives
+// a response and another flow arriving between them.
+func TestPcapDecode_ReassemblesAcrossPackets(t *testing.T) {
+	frame := s7ReadRequestFrame(9)
+	path := writePCAP(t,
+		buildEtherIPv4TCP(t, "10.0.0.1", "10.0.0.2", 45000, 102, frame[:5]),
+		buildEtherIPv4TCP(t, "10.0.0.2", "10.0.0.1", 102, 45000, frame), // other direction, own TCP stream
+		buildEtherIPv4TCP(t, "10.0.0.3", "10.0.0.2", 45000, 102, frame), // other flow
+		buildEtherIPv4TCP(t, "10.0.0.1", "10.0.0.2", 45000, 102, frame[5:]),
+	)
+	r := runCLI(t, "pcap-decode", "--file", path, "--format", "jsonl").ok(t)
+	if n := strings.Count(r.stdout, `"cotp_type":"DT"`); n != 3 {
+		t.Fatalf("got %d frames, want all 3 decoded:\n%s", n, r.stdout)
+	}
+	if strings.Contains(r.stdout, `"error"`) {
+		t.Fatalf("a frame failed to decode:\n%s", r.stdout)
+	}
+}
+
+func writePCAP(t *testing.T, pkts ...[]byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "capture.pcap")
+	if err := os.WriteFile(path, buildPCAP(pkts), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestPopTPKTFrame_ResynchronisesOnBadVersion: a capture can start inside a frame.
+// Bytes behind a wrong version are noise, not a length to wait for.
+func TestPopTPKTFrame_ResynchronisesOnBadVersion(t *testing.T) {
+	// A plausible length behind a wrong version byte must not swallow the real frame.
+	good := []byte{0x03, 0x00, 0x00, 0x07, 0x02, 0xF0, 0x80}
+	buf := append([]byte{0x09, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00}, good...)
+	frame, rest, ok := popTPKTFrame(buf)
+	if !ok || !bytes.Equal(frame, good) || len(rest) != 0 {
+		t.Fatalf("frame=% X rest=% X ok=%v", frame, rest, ok)
+	}
+}
+
 func buildPCAP(pkts [][]byte) []byte {
 	var b bytes.Buffer
-	_ = binary.Write(&b, binary.LittleEndian, uint32(0xd4c3b2a1))
+	_ = binary.Write(&b, binary.LittleEndian, uint32(0xa1b2c3d4))
 	_ = binary.Write(&b, binary.LittleEndian, uint16(2))
 	_ = binary.Write(&b, binary.LittleEndian, uint16(4))
 	_ = binary.Write(&b, binary.LittleEndian, int32(0))

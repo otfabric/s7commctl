@@ -16,7 +16,7 @@ jobs:
     uses: otfabric/.github/.github/workflows/go-ci.yml@v2.1.0
     with:
       run-govulncheck: true
-      coverage-min: "26"
+      coverage-min: "90"
       test-exclude-regex: "/example(s)?($|/)"
       codecov-name: s7commctl
       go-versions: '["1.25", "1.26"]'
