@@ -1,5 +1,16 @@
 # s7commctl Releases
 
+## v0.3.1
+
+**Date:** 2026-10-30
+**Previous release:** v0.3.0
+
+### Dependencies
+
+- `go-s7comm` → v0.8.0: a short module ID reply no longer panics, and timeouts now cover S7 setup, so a silent device cannot block `connect`, `discover` or the rack and slot probe.
+
+---
+
 ## v0.3.0
 
 **Date:** 2026-10-30
