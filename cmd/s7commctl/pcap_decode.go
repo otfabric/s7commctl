@@ -192,6 +192,10 @@ func parseEthernetIPv4TCP(packet []byte) (tcpMeta, []byte, bool) {
 // Returns (frame, remainder, true) or (nil, buf, false) if no complete frame.
 func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 	for len(buf) >= tpktHeaderLength {
+		if buf[0] != tpktVersion {
+			buf = buf[1:]
+			continue
+		}
 		totalLen := int(binary.BigEndian.Uint16(buf[2:4]))
 		if totalLen < tpktMinPacketLength || totalLen > tpktMaxPacketLength {
 			buf = buf[1:]
@@ -200,12 +204,7 @@ func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 		if len(buf) < totalLen {
 			return nil, buf, false
 		}
-		pkt := buf[:totalLen]
-		if _, err := peelTPKT(pkt); err != nil {
-			buf = buf[1:]
-			continue
-		}
-		return bytes.Clone(pkt), bytes.Clone(buf[totalLen:]), true
+		return bytes.Clone(buf[:totalLen]), bytes.Clone(buf[totalLen:]), true
 	}
 	return nil, buf, false
 }

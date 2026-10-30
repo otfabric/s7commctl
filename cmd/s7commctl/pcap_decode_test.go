@@ -147,6 +147,18 @@ func writePCAP(t *testing.T, pkts ...[]byte) string {
 	return path
 }
 
+// TestPopTPKTFrame_ResynchronisesOnBadVersion: a capture can start inside a frame.
+// Bytes behind a wrong version are noise, not a length to wait for.
+func TestPopTPKTFrame_ResynchronisesOnBadVersion(t *testing.T) {
+	// A plausible length behind a wrong version byte must not swallow the real frame.
+	good := []byte{0x03, 0x00, 0x00, 0x07, 0x02, 0xF0, 0x80}
+	buf := append([]byte{0x09, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00}, good...)
+	frame, rest, ok := popTPKTFrame(buf)
+	if !ok || !bytes.Equal(frame, good) || len(rest) != 0 {
+		t.Fatalf("frame=% X rest=% X ok=%v", frame, rest, ok)
+	}
+}
+
 func buildPCAP(pkts [][]byte) []byte {
 	var b bytes.Buffer
 	_ = binary.Write(&b, binary.LittleEndian, uint32(0xa1b2c3d4))
