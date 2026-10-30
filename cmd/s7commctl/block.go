@@ -72,7 +72,7 @@ func runBlockInfo(cmd *cobra.Command, args []string) error {
 	}
 	c := client.New(blockInfoConfig.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
-		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
+		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 
@@ -149,7 +149,7 @@ func runBlockUpload(cmd *cobra.Command, args []string) error {
 	}
 	c := client.New(blockUploadConfig.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
-		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
+		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 

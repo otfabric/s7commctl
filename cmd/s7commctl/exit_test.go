@@ -3,8 +3,15 @@
 package s7commctl
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"io/fs"
+	"net"
 	"testing"
+
+	"github.com/otfabric/go-s7comm/client"
+	"github.com/otfabric/go-s7comm/wire"
 )
 
 func TestExitError_UsageCode(t *testing.T) {
@@ -35,8 +42,8 @@ func TestExitError_RuntimeCode(t *testing.T) {
 	if !errors.As(err, &ee) {
 		t.Fatal("expected *ExitError")
 	}
-	if ee.Code != 3 {
-		t.Errorf("expected code 3 (runtime), got %d", ee.Code)
+	if ee.Code != 6 {
+		t.Errorf("expected code 6 (protocol), got %d", ee.Code)
 	}
 }
 
@@ -70,5 +77,37 @@ func TestCompareRead_InvalidCandidates_ReturnsUsageExit(t *testing.T) {
 	}
 	if ee.Code != 2 {
 		t.Errorf("expected exit code 2 (usage), got %d", ee.Code)
+	}
+}
+
+func TestClassifiedExitCodes(t *testing.T) {
+	refused := &net.OpError{Op: "dial", Err: errors.New("refused")}
+	for _, c := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"nil", nil, 0},
+		{"cobra", errors.New("unknown flag: --x"), 2},
+		{"operation", ExitOperation(errors.New("short read")), 1},
+		{"connect", ExitConnect(errors.New("connect failed")), 4},
+		{"connect refused", ExitConnect(fmt.Errorf("connect failed: %w", refused)), 4},
+		{"connect timeout", ExitConnect(fmt.Errorf("connect failed: %w", context.DeadlineExceeded)), 5},
+		{"interrupted", ExitRuntime(fmt.Errorf("read failed: %w", context.Canceled)), 130},
+		{"not connected", ExitRuntime(client.ErrNotConnected), 4},
+		{"protocol", ExitRuntime(client.ErrProtocolFailure), 6},
+		{"truncated", ExitRuntime(wire.ErrInvalidDataLength), 6},
+		{"request too large", ExitRuntime(client.ErrRequestExceedsPDU), 3},
+		{"permission", ExitConnect(fs.ErrPermission), 9},
+		{"output file", ExitRuntime(&fs.PathError{Op: "open", Path: "x", Err: fs.ErrNotExist}), 10},
+	} {
+		if got := exitCode(c.err); got != c.want {
+			t.Errorf("%s: exit %d, want %d", c.name, got, c.want)
+		}
+	}
+	for _, f := range []func(error) error{ExitUsage, ExitOperation, ExitConnect, ExitRuntime} {
+		if f(nil) != nil {
+			t.Error("nil error must stay nil")
+		}
 	}
 }

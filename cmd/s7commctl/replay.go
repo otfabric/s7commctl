@@ -51,14 +51,14 @@ func runReplay(cmd *cobra.Command, args []string) error {
 
 	ln, err := net.Listen("tcp", rplConfig.Listen)
 	if err != nil {
-		return ExitRuntime(fmt.Errorf("listen failed: %w", err))
+		return ExitConnect(fmt.Errorf("listen failed: %w", err))
 	}
 	defer func() { _ = ln.Close() }()
 
 	_, _ = fmt.Fprintf(os.Stdout, "replay listening on %s\n", rplConfig.Listen)
 	conn, err := ln.Accept()
 	if err != nil {
-		return ExitRuntime(fmt.Errorf("accept failed: %w", err))
+		return ExitConnect(fmt.Errorf("accept failed: %w", err))
 	}
 	defer func() { _ = conn.Close() }()
 

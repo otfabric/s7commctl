@@ -3,9 +3,12 @@
 package s7commctl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -50,17 +53,22 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
+// Execute runs the CLI until it finishes or SIGINT or SIGTERM cancels it.
 func Execute() {
 	registerCompletions(rootCmd)
-	if err := rootCmd.Execute(); err != nil {
-		var ee *ExitError
-		if errors.As(err, &ee) {
-			if ee.Err != nil {
-				fmt.Fprintln(os.Stderr, ee.Err)
-			}
-			os.Exit(ee.Code)
-		}
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err := rootCmd.ExecuteContext(ctx)
+	stop()
+	if err == nil {
+		return
 	}
+	var ee *ExitError
+	if errors.As(err, &ee) {
+		if ee.Err != nil {
+			fmt.Fprintln(os.Stderr, ee.Err)
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	os.Exit(exitCode(err))
 }

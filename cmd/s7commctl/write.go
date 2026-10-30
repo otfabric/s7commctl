@@ -49,7 +49,7 @@ func runWrite(cmd *cobra.Command, args []string) error {
 
 	if !writeConfig.Force {
 		if !confirmWrite(os.Stdin) {
-			return ExitOperation(fmt.Errorf("write aborted by user"))
+			return ExitUsage(fmt.Errorf("write aborted by user"))
 		}
 	}
 
@@ -70,7 +70,7 @@ func runWrite(cmd *cobra.Command, args []string) error {
 	c := client.New(writeConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
-		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
+		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 

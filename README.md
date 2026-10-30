@@ -184,14 +184,7 @@ To install permanently (e.g. Bash): `s7commctl completion bash > /etc/bash_compl
 
 ### Exit codes
 
-Commands use the following exit code conventions (suitable for scripting):
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Target/operation non-success (e.g. probe found no valid rack/slot, read returned short-read with `--strict-read`, list/diagnostic failed) |
-| 2 | Usage or validation error (invalid flags, missing required args, malformed input) |
-| 3 | Connection or runtime failure (TCP connect failed, timeout, protocol error) |
+Exit codes follow the organisation table and are listed, with the mapping from older versions, in [docs/exitcodes.md](docs/exitcodes.md): 0 success, 1 a completed operation that reports a non-success, 2 usage, 3 invalid input, 4 connection, 5 timeout, 6 protocol, 9 permission, 10 internal, 130 interrupted.
 
 Note: Cobra is configured so that usage/help is not printed on runtime failures (only on validation errors).
 
