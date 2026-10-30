@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"
@@ -66,18 +65,18 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		flow := flowKey(meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
-		buffers[flow] = append(buffers[flow], payload...)
+		// One buffer per direction: each direction of a connection is its own byte stream.
+		source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
+		buffers[source] = append(buffers[source], payload...)
 		for {
-			frame, rest, ok := popTPKTFrame(buffers[flow])
+			frame, rest, ok := popTPKTFrame(buffers[source])
 			if !ok {
-				buffers[flow] = rest
+				buffers[source] = rest
 				break
 			}
-			buffers[flow] = rest
+			buffers[source] = rest
 
 			summary, derr := inspectTPKTFrame(frame)
-			source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
 			if werr := writeFrameEvent(os.Stdout, pdcConfig.Format, source, summary, derr); werr != nil {
 				return ExitRuntime(werr)
 			}
@@ -187,15 +186,6 @@ func parseEthernetIPv4TCP(packet []byte) (tcpMeta, []byte, bool) {
 	srcPort := int(binary.BigEndian.Uint16(tcp[0:2]))
 	dstPort := int(binary.BigEndian.Uint16(tcp[2:4]))
 	return tcpMeta{SrcIP: srcIP, DstIP: dstIP, SrcPort: srcPort, DstPort: dstPort}, tcp[off:], true
-}
-
-func flowKey(src string, srcPort int, dst string, dstPort int) string {
-	k1 := fmt.Sprintf("%s:%d-%s:%d", src, srcPort, dst, dstPort)
-	k2 := fmt.Sprintf("%s:%d-%s:%d", dst, dstPort, src, srcPort)
-	if strings.Compare(k1, k2) <= 0 {
-		return k1
-	}
-	return k2
 }
 
 // popTPKTFrame pops one TPKT frame from buf.

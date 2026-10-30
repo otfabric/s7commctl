@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -115,6 +117,34 @@ func TestReadPCAPPackets_OversizedPacket(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("err = %v, want a length error", err)
 	}
+}
+
+// TestPcapDecode_ReassemblesAcrossPackets: a frame split over two segments survives
+// a response and another flow arriving between them.
+func TestPcapDecode_ReassemblesAcrossPackets(t *testing.T) {
+	frame := s7ReadRequestFrame(9)
+	path := writePCAP(t,
+		buildEtherIPv4TCP(t, "10.0.0.1", "10.0.0.2", 45000, 102, frame[:5]),
+		buildEtherIPv4TCP(t, "10.0.0.2", "10.0.0.1", 102, 45000, frame), // other direction, own TCP stream
+		buildEtherIPv4TCP(t, "10.0.0.3", "10.0.0.2", 45000, 102, frame), // other flow
+		buildEtherIPv4TCP(t, "10.0.0.1", "10.0.0.2", 45000, 102, frame[5:]),
+	)
+	r := runCLI(t, "pcap-decode", "--file", path, "--format", "jsonl").ok(t)
+	if n := strings.Count(r.stdout, `"cotp_type":"DT"`); n != 3 {
+		t.Fatalf("got %d frames, want all 3 decoded:\n%s", n, r.stdout)
+	}
+	if strings.Contains(r.stdout, `"error"`) {
+		t.Fatalf("a frame failed to decode:\n%s", r.stdout)
+	}
+}
+
+func writePCAP(t *testing.T, pkts ...[]byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "capture.pcap")
+	if err := os.WriteFile(path, buildPCAP(pkts), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func buildPCAP(pkts [][]byte) []byte {
