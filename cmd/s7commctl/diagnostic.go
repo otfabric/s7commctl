@@ -49,7 +49,7 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 
 	if err := c.Connect(cmd.Context()); err != nil {
 		diagnosticErrorJSON(diagnosticConfig, "connect failed", err)
-		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
+		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 

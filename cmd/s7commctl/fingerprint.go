@@ -49,7 +49,7 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 	c := client.New(fingerprintConfig.IP, opts...)
 
 	if err := c.Connect(cmd.Context()); err != nil {
-		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
+		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 

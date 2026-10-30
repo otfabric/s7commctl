@@ -80,7 +80,7 @@ func runListBlocksWithConfig(cmd *cobra.Command, _ []string, cfg config.BlocksCo
 	c := client.New(cfg.IP, opts...)
 	if err := c.Connect(cmd.Context()); err != nil {
 		listBlocksErrorJSON(cfg, "connect failed", err)
-		return ExitRuntime(fmt.Errorf("connect failed: %w", err))
+		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
 

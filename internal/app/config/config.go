@@ -421,6 +421,9 @@ func LoadFromEnv(cfg interface{}) {
 			continue
 		}
 		envValue := os.Getenv(tag)
+		if envValue == "" && tag == "S7COMMCTL_FORMAT" {
+			envValue = os.Getenv("S7COMMCTL_OUTPUT_FORMAT")
+		}
 		if envValue == "" {
 			continue
 		}

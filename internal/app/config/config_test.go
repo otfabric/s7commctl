@@ -157,3 +157,17 @@ func TestConnectionRequestMeta(t *testing.T) {
 		t.Errorf("expected auto_rack_slot: %v", m["connection_mode"])
 	}
 }
+
+func TestLoadFromEnv_OutputFormat(t *testing.T) {
+	var cfg DiscoverConfig
+	t.Setenv("S7COMMCTL_OUTPUT_FORMAT", "json")
+	LoadFromEnv(&cfg)
+	if cfg.Format != "json" {
+		t.Fatalf("S7COMMCTL_OUTPUT_FORMAT ignored: %q", cfg.Format)
+	}
+	t.Setenv("S7COMMCTL_FORMAT", "table")
+	LoadFromEnv(&cfg)
+	if cfg.Format != "table" {
+		t.Fatalf("S7COMMCTL_FORMAT does not win: %q", cfg.Format)
+	}
+}

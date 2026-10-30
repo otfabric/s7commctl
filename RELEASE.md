@@ -1,5 +1,37 @@
 # s7commctl Releases
 
+## v0.3.0
+
+**Date:** 2026-10-30
+**Previous release:** v0.2.9
+
+### Summary
+
+Exit codes converge on the organisation table (ADR-0006). **Scripts that test for exit 3 must change.**
+
+| Case | Old | New |
+|---|---|---|
+| Probe found nothing, strict short read | 1 | 1 |
+| Write aborted at the prompt | 1 | 2 |
+| Unknown flag or command | 1 | 2 |
+| Connection failure | 3 | 4 |
+| Timeout | 3 | 5 |
+| Operation failed on the PLC, protocol error | 3 | 6 |
+| Request larger than the PDU | 3 | 3 |
+| Permission refused by the operating system | 3 | 9 |
+| Output file cannot be opened | 3 | 10 |
+| Interrupted | killed by the signal | 130 |
+
+### Changed
+
+- SIGINT and SIGTERM cancel every command through a root context. `record` stops cleanly.
+
+### Added
+
+- `S7COMMCTL_OUTPUT_FORMAT` is accepted besides `S7COMMCTL_FORMAT`, the canonical name, which wins.
+
+---
+
 ## v0.2.9
 
 **Date:** 2026-10-19  
