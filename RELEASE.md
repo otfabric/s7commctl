@@ -1,5 +1,17 @@
 # s7commctl Releases
 
+## v0.3.2
+
+**Date:** 2026-10-31
+**Previous release:** v0.3.1
+
+### Changed
+
+- Policy 1.2: build output in `bin/` and `release/`, a per-package coverage floor, and more tests and CI. No change in behaviour.
+- Built on go-s7comm v0.8.1, go-cotp v1.1.1, go-tpkt v1.0.2.
+
+---
+
 ## v0.3.1
 
 **Date:** 2026-10-30
