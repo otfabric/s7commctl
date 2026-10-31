@@ -2,10 +2,14 @@
 .vscode/
 
 # Ignore build output directories and release files
-bin/
-release/
+/bin/
+/release/
 /s7commctl
 
 # Ignore coverage files
 cover.*
 coverage.*
+
+# Build artefacts live in /bin/ and /release/ (otfabric/engineering REPO-005)
+*.test
+coverage.out
