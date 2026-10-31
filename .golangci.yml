@@ -12,3 +12,8 @@ linters:
     - unused
     - unparam   # unused function parameters (e.g. Cobra RunE args)
     - misspell
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

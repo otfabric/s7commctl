@@ -13,6 +13,7 @@ This repository follows **otfabric/engineering policy 1.1**, profile **cli** (`.
 | Question | Source |
 |---|---|
 | Exit codes (script-facing API) | docs/exitcodes.md |
+| JSON output contract | docs/json-output.md |
 | Commands and flags | README.md |
 | Worked examples | EXAMPLES.md |
 | Protocol notes | PROTOCOL.md |

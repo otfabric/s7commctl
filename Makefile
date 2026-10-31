@@ -1,4 +1,4 @@
-.PHONY: help all run fmt lint lint-ci vet test check quality tidy build build-nocheck build-all release-all install clean coverage cover vuln e2e
+.PHONY: help all run fmt lint lint-ci vet test check quality tidy build build-nocheck build-all release-all install clean coverage coverage-pkg-check cover vuln e2e
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,9 +30,17 @@ fmt: ## Format Go code
 	@gofmt -w .
 	@gofumpt -l -w . 2>/dev/null || true
 
+# Per-package floor (TEST-012): the lowest package, cmd/s7commctl, measures 97.8 %.
+COVER_PKG_MIN := 95
+
 coverage: ## Run tests with coverage (writes coverage.out)
 	@echo "Running coverage"
 	@go test -count=1 -race -coverprofile=coverage.out -covermode=atomic ./...
+
+coverage-pkg-check: coverage ## Fail when a package is below COVER_PKG_MIN
+	@awk -v m="$(COVER_PKG_MIN)" 'NR > 1 { n[$$1] = $$2; if ($$3 > 0) h[$$1] = 1 } \
+	END { for (k in n) { p = k; sub(/\/[^\/]*$$/, "", p); s[p] += n[k]; if (k in h) c[p] += n[k] } \
+	for (p in s) { v = 100 * c[p] / s[p]; if (v < m) { printf "%s: %.1f%% < %s%%\n", p, v, m; bad = 1 } } exit bad }' coverage.out
 
 cover: coverage ## Open coverage report in browser
 	@echo "Opening coverage report"
@@ -61,7 +69,7 @@ test: ## Run all tests on project packages
 	@go clean -testcache
 	@go test -count=1 -race ./...
 
-check: fmt lint lint-ci vet vuln test coverage ## Run all checks (format, lint, vet, vulnerability scan, test, coverage)
+check: fmt lint lint-ci vet vuln test coverage-pkg-check ## Run all checks (format, lint, vet, vulnerability scan, test, per-package coverage)
 
 quality: check ## Alias for full quality gate
 
