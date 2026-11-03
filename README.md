@@ -1,6 +1,6 @@
 # s7commctl
 
-[![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/otfabric/s7commctl.svg)](https://pkg.go.dev/github.com/otfabric/s7commctl)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml/badge.svg)](https://github.com/otfabric/s7commctl/actions/workflows/ci.yml)
@@ -84,7 +84,7 @@ Library code is consumed from the separate `otfabric/go-s7comm` module.
 
 ## Requirements
 
-- Go 1.25+
+- Go 1.26+
 - Network connectivity to S7 targets on TCP/102
 
 The library dependency `github.com/otfabric/go-s7comm` (currently v0.7.5) is a regular versioned module requirement in `go.mod`; no local `replace` or sibling checkout is needed.

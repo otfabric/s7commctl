@@ -110,9 +110,9 @@ func printDiscovered(found []client.DiscoverResult, cfg config.DiscoverConfig) {
 }
 
 func discoverResultsJSON(results []client.DiscoverResult) {
-	out := make([]map[string]interface{}, 0, len(results))
+	out := make([]map[string]any, 0, len(results))
 	for _, d := range results {
-		m := map[string]interface{}{
+		m := map[string]any{
 			"ip":       d.IP,
 			"port":     d.Port,
 			"is_s7":    d.IsS7,

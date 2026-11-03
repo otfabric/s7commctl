@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/otfabric/go-s7comm/client"
@@ -78,7 +79,7 @@ func runRecord(cmd *cobra.Command, args []string) error {
 		return ExitUsage(err)
 	}
 
-	f, err := os.OpenFile(recConfig.Output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(filepath.Clean(recConfig.Output), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return ExitRuntime(fmt.Errorf("open output file: %w", err))
 	}
@@ -133,7 +134,7 @@ func writeSample(w io.Writer, format, dataType string, sampleIdx int, result *cl
 	case "jsonl":
 		fallthrough
 	default:
-		record := map[string]interface{}{
+		record := map[string]any{
 			"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 			"sample":    sampleIdx,
 			"status":    status,
@@ -155,7 +156,7 @@ func writeSample(w io.Writer, format, dataType string, sampleIdx int, result *cl
 	}
 }
 
-func outputValue(data []byte, dataType string) interface{} {
+func outputValue(data []byte, dataType string) any {
 	switch dataType {
 	case "bool":
 		return model.DecodeBool(data, 0)

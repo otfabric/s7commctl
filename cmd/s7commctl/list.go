@@ -121,8 +121,8 @@ func listBlocksErrorJSON(cfg config.BlocksConfig, prefix string, err error) {
 	}
 	reqMeta := cfg.ConnectionRequestMeta()
 	reqMeta["block_type"] = cfg.BlockType
-	target := map[string]interface{}{"ip": cfg.IP, "port": port}
-	out := map[string]interface{}{
+	target := map[string]any{"ip": cfg.IP, "port": port}
+	out := map[string]any{
 		"target":  target,
 		"request": reqMeta,
 		"error":   map[string]string{"code": "runtime", "message": msg},

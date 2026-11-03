@@ -4,7 +4,7 @@ Thank you for your interest in contributing to s7commctl. This document explains
 
 ## Development setup
 
-- **Go**: 1.25 or later.
+- **Go**: 1.26 or later (CI: 1.26 and 1.27).
 - **Network**: Optional; required only for live tests against S7 targets.
 
 ```sh

@@ -59,8 +59,8 @@ func TestScan_JSON(t *testing.T) {
 		wantField(t, m, float64(1), "summary", key)
 	}
 	wantField(t, m, float64(0), "summary", "inconclusive_count")
-	spans := field(t, m, "spans", "partial").([]interface{})
-	wantField(t, spans[0].(map[string]interface{}), "short-read", "status")
+	spans := field(t, m, "spans", "partial").([]any)
+	wantField(t, spans[0].(map[string]any), "short-read", "status")
 }
 
 func TestScan_NonDBAreaHasNoDBNumber(t *testing.T) {
@@ -68,7 +68,7 @@ func TestScan_NonDBAreaHasNoDBNumber(t *testing.T) {
 	base := p.args("scan", "read-ranges", "--area", "M", "--end", "8", "--probe-size", "8")
 	runCLI(t, base...).ok(t).lacks(t, " DB1")
 	m := runCLI(t, append(base, "--format", "json")...).ok(t).jsonOut(t)
-	if _, ok := field(t, m, "request").(map[string]interface{})["db_number"]; ok {
+	if _, ok := field(t, m, "request").(map[string]any)["db_number"]; ok {
 		t.Fatal("request.db_number is set for a non-DB area")
 	}
 }
@@ -89,7 +89,7 @@ func TestScan_Validation(t *testing.T) {
 	runCLI(t, base("--start", "8", "--end", "8")...).wantUsage(t, "end must be > start")
 	runCLI(t, base("--probe-size", "0")...).wantUsage(t, "probe-size must be > 0")
 	runCLI(t, base("--area", "Z")...).wantUsage(t, "unknown area")
-	runCLI(t, base("--retries", "-1")...).wantFailure(t, "scan failed")
+	runCLI(t, base("--retries", "-1")...).wantUsage(t, "scan failed")
 }
 
 func TestSpanHuman(t *testing.T) {
@@ -183,12 +183,12 @@ func TestProbe_JSON(t *testing.T) {
 	m := runCLI(t, probeArgs(p, "--strict", "--confirm", "szl", "--format", "json")...).ok(t).jsonOut(t)
 	wantField(t, m, "szl", "request", "confirm")
 	wantField(t, m, float64(1), "result", "confirmed_by_query")
-	valid := field(t, m, "result", "valid").([]interface{})
+	valid := field(t, m, "result", "valid").([]any)
 	if len(valid) != 1 {
 		t.Fatalf("valid = %v", valid)
 	}
-	wantField(t, valid[0].(map[string]interface{}), "query-confirmed", "status")
-	wantField(t, valid[0].(map[string]interface{}), float64(2), "slot")
+	wantField(t, valid[0].(map[string]any), "query-confirmed", "status")
+	wantField(t, valid[0].(map[string]any), float64(2), "slot")
 }
 
 func TestProbe_RepeatReportsRuns(t *testing.T) {
@@ -226,7 +226,7 @@ func TestProbe_ManyCandidatesCollapse(t *testing.T) {
 func TestProbe_Validation(t *testing.T) {
 	runCLI(t, "probe", "rackslot").wantUsage(t, "IP address is required")
 	runCLI(t, "probe", "rackslot", "--ip", "127.0.0.1", "--local-tsap", "1").wantUsage(t, "must be set together")
-	runCLI(t, "probe", "rackslot", "--ip", "127.0.0.1", "--rack-min", "5", "--rack-max", "1").wantFailure(t, "probe failed")
+	runCLI(t, "probe", "rackslot", "--ip", "127.0.0.1", "--rack-min", "5", "--rack-max", "1").wantUsage(t, "probe failed")
 }
 
 func TestPrintProbeRepeatSummary(t *testing.T) {
@@ -323,7 +323,7 @@ func TestPrintProbeRackSlotTable_DetailRows(t *testing.T) {
 	}
 
 	var many []client.RackSlotCandidate
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		many = append(many, client.RackSlotCandidate{Slot: i, Error: long, ConfirmedBy: client.ConfirmSZL, Status: "unreachable"})
 	}
 	res = &client.RackSlotProbeResult{Address: "h", Candidates: many}
@@ -407,14 +407,14 @@ func TestCompare_JSON(t *testing.T) {
 	p := newFakePLC(t)
 	m := runCLI(t, compareArgs(p, "--format", "json", "--area", "M")...).ok(t).jsonOut(t)
 	wantField(t, m, true, "result", "rack_slot_insensitive")
-	by := field(t, m, "result", "by_candidate").([]interface{})
+	by := field(t, m, "result", "by_candidate").([]any)
 	if len(by) != 2 {
 		t.Fatalf("by_candidate = %v", by)
 	}
-	wantField(t, by[0].(map[string]interface{}), "baseline", "same_as_baseline")
-	wantField(t, by[1].(map[string]interface{}), "yes", "same_as_baseline")
-	wantField(t, by[0].(map[string]interface{}), "00010203", "data_hex")
-	if len(field(t, m, "request", "candidates").([]interface{})) != 2 {
+	wantField(t, by[0].(map[string]any), "baseline", "same_as_baseline")
+	wantField(t, by[1].(map[string]any), "yes", "same_as_baseline")
+	wantField(t, by[0].(map[string]any), "00010203", "data_hex")
+	if len(field(t, m, "request", "candidates").([]any)) != 2 {
 		t.Fatal("request.candidates lost a pair")
 	}
 }
@@ -442,9 +442,9 @@ func TestCompare_FailedCandidateIsReported(t *testing.T) {
 	}
 	runCLI(t, compareArgs(p)...).ok(t).has(t, "Rack/slot-insensitive: false", "transport-error", "peer disconnected")
 	m := runCLI(t, compareArgs(p, "--format", "json")...).ok(t).jsonOut(t)
-	by := field(t, m, "result", "by_candidate").([]interface{})
-	wantField(t, by[1].(map[string]interface{}), "-", "same_as_baseline")
-	if field(t, by[1].(map[string]interface{}), "message") == "" {
+	by := field(t, m, "result", "by_candidate").([]any)
+	wantField(t, by[1].(map[string]any), "-", "same_as_baseline")
+	if field(t, by[1].(map[string]any), "message") == "" {
 		t.Fatal("no message on the failed candidate")
 	}
 }
@@ -453,8 +453,8 @@ func TestCompare_LongErrorIsCut(t *testing.T) {
 	p := newFakePLC(t)
 	p.stop() // connection refused: the longest message a candidate can carry
 	m := runCLI(t, compareArgs(p, "--format", "json")...).ok(t).jsonOut(t)
-	by := field(t, m, "result", "by_candidate").([]interface{})
-	full := field(t, by[0].(map[string]interface{}), "message").(string)
+	by := field(t, m, "result", "by_candidate").([]any)
+	full := field(t, by[0].(map[string]any), "message").(string)
 	if len(full) <= 30 {
 		t.Fatalf("message %q is too short to exercise the cut", full)
 	}
@@ -470,7 +470,7 @@ func TestCompare_Validation(t *testing.T) {
 	runCLI(t, base()...).wantUsage(t, "at least one candidate required")
 	runCLI(t, base("--candidates", "0/1", "--area", "Z", "--size", "1")...).wantUsage(t, "unknown area")
 	runCLI(t, base("--candidates", "0/1", "--area", "M")...).wantUsage(t, "size must be > 0")
-	runCLI(t, base("--candidates", "0/1", "--area", "M", "--size", "1", "--offset", "-1")...).wantFailure(t, "compare read failed")
+	runCLI(t, base("--candidates", "0/1", "--area", "M", "--size", "1", "--offset", "-1")...).wantUsage(t, "compare read failed")
 }
 
 func TestParseCandidates(t *testing.T) {
@@ -590,7 +590,7 @@ func TestProfile_NoDevice(t *testing.T) {
 			"Block list support:    no", "(command failed or not attempted)")
 	m := runCLI(t, p.args("profile", "--format", "json")...).ok(t).jsonOut(t)
 	wantField(t, m, false, "result", "setup_support")
-	result := field(t, m, "result").(map[string]interface{})
+	result := field(t, m, "result").(map[string]any)
 	for _, key := range []string{"recommended_rack", "identify", "block_count"} {
 		if _, ok := result[key]; ok {
 			t.Errorf("result.%s is set without a device", key)
@@ -703,7 +703,7 @@ func TestPrintDiscovered(t *testing.T) {
 	}
 
 	stdout, _ := captureOutput(t, func() { printDiscovered(found, config.DiscoverConfig{Format: "JSON"}) })
-	var got []map[string]interface{}
+	var got []map[string]any
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, stdout)
 	}

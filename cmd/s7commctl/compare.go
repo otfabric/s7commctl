@@ -75,14 +75,11 @@ func runCompareRead(cmd *cobra.Command, args []string) error {
 		req.Port = 102
 	}
 
-	repeat := compareReadConfig.Repeat
-	if repeat < 1 {
-		repeat = 1
-	}
+	repeat := max(compareReadConfig.Repeat, 1)
 	interval := time.Duration(compareReadConfig.IntervalMS) * time.Millisecond
 
 	var results []*client.CompareReadResult
-	for i := 0; i < repeat; i++ {
+	for i := range repeat {
 		result, err := client.CompareRead(cmd.Context(), req)
 		if err != nil {
 			return ExitRuntime(fmt.Errorf("compare read failed: %w", err))
@@ -226,9 +223,9 @@ func printCompareReadJSON(res *client.CompareReadResult, sameAsBaseline []string
 	if sab == nil {
 		sab = []string{}
 	}
-	byCandidate := make([]map[string]interface{}, 0, len(res.ByCandidate))
+	byCandidate := make([]map[string]any, 0, len(res.ByCandidate))
 	for i, bc := range res.ByCandidate {
-		ent := map[string]interface{}{
+		ent := map[string]any{
 			"rack":             bc.Rack,
 			"slot":             bc.Slot,
 			"status":           string(bc.Result.Status),
@@ -253,19 +250,19 @@ func printCompareReadJSON(res *client.CompareReadResult, sameAsBaseline []string
 	if port == 0 {
 		port = 102
 	}
-	target := map[string]interface{}{"ip": res.Request.Address, "port": port}
-	reqMap := map[string]interface{}{
+	target := map[string]any{"ip": res.Request.Address, "port": port}
+	reqMap := map[string]any{
 		"area":      res.Request.Area.String(),
 		"db_number": res.Request.DBNumber,
 		"offset":    res.Request.Offset,
 		"size":      res.Request.Size,
 	}
-	candidates := make([]map[string]interface{}, 0, len(res.Request.Candidates))
+	candidates := make([]map[string]any, 0, len(res.Request.Candidates))
 	for _, r := range res.Request.Candidates {
-		candidates = append(candidates, map[string]interface{}{"rack": r.Rack, "slot": r.Slot})
+		candidates = append(candidates, map[string]any{"rack": r.Rack, "slot": r.Slot})
 	}
 	reqMap["candidates"] = candidates
-	resultObj := map[string]interface{}{
+	resultObj := map[string]any{
 		"rack_slot_insensitive": res.RackSlotInsensitive,
 		"by_candidate":          byCandidate,
 	}
@@ -274,7 +271,7 @@ func printCompareReadJSON(res *client.CompareReadResult, sameAsBaseline []string
 		resultObj["data_stable_across_runs"] = dataStable
 		resultObj["stable_by_candidate"] = stableByCandidate
 	}
-	out := map[string]interface{}{
+	out := map[string]any{
 		"target":  target,
 		"request": reqMap,
 		"result":  resultObj,
@@ -290,7 +287,7 @@ func parseCandidates(s string) ([]client.RackSlot, error) {
 		return nil, nil
 	}
 	var out []client.RackSlot
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

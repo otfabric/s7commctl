@@ -420,6 +420,28 @@ func FuzzParseEthernetIPv4TCP(f *testing.F) {
 	})
 }
 
+// FuzzReadTPKTFrame: what sniff and replay read from a peer. A frame read off
+// the stream is a valid TPKT frame of the declared length, and inspecting it
+// must not panic.
+func FuzzReadTPKTFrame(f *testing.F) {
+	f.Add(s7ReadRequestFrame(1))
+	f.Add([]byte{0x03, 0x00, 0x00, 0x07, 0x02, 0xF0, 0x80})
+	f.Add([]byte{0x03, 0x00, 0xFF, 0xFF, 0x02})
+	f.Fuzz(func(t *testing.T, stream []byte) {
+		r := bytes.NewReader(stream)
+		for {
+			frame, err := readTPKTFrame(r)
+			if err != nil {
+				return
+			}
+			if _, err := peelTPKT(frame); err != nil {
+				t.Fatalf("read an invalid frame % X: %v", frame, err)
+			}
+			_, _ = inspectTPKTFrame(frame)
+		}
+	})
+}
+
 func TestReadTPKTFrame_Malformed(t *testing.T) {
 	for name, tc := range map[string]struct {
 		in   []byte
@@ -520,9 +542,9 @@ func TestWriteSample(t *testing.T) {
 		t.Errorf("hex sample = %q", b.String())
 	}
 
-	decode := func(t *testing.T, line []byte) map[string]interface{} {
+	decode := func(t *testing.T, line []byte) map[string]any {
 		t.Helper()
-		var m map[string]interface{}
+		var m map[string]any
 		if err := json.Unmarshal(line, &m); err != nil {
 			t.Fatal(err)
 		}
@@ -558,7 +580,7 @@ func TestOutputValue(t *testing.T) {
 	for _, tc := range []struct {
 		data []byte
 		typ  string
-		want interface{}
+		want any
 	}{
 		{[]byte{0x01}, "bool", true},
 		{[]byte{0x00}, "bool", false},

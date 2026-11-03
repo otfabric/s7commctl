@@ -99,6 +99,7 @@ func TestClassifiedExitCodes(t *testing.T) {
 		{"truncated", ExitRuntime(wire.ErrInvalidDataLength), 6},
 		{"request too large", ExitRuntime(client.ErrRequestExceedsPDU), 3},
 		{"permission", ExitConnect(fs.ErrPermission), 9},
+		{"address rejected", ExitRuntime(fmt.Errorf("write failed: %w", &client.ValidationError{Message: "DB number too large"})), 2},
 		{"output file", ExitRuntime(&fs.PathError{Op: "open", Path: "x", Err: fs.ErrNotExist}), 10},
 	} {
 		if got := exitCode(c.err); got != c.want {

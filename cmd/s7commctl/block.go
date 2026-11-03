@@ -95,10 +95,10 @@ func runBlockInfo(cmd *cobra.Command, args []string) error {
 		reqMeta := blockInfoConfig.ConnectionRequestMeta()
 		reqMeta["type"] = blockInfoConfig.BlockType
 		reqMeta["number"] = blockInfoConfig.Number
-		out := map[string]interface{}{
-			"target":  map[string]interface{}{"ip": blockInfoConfig.IP, "port": port},
+		out := map[string]any{
+			"target":  map[string]any{"ip": blockInfoConfig.IP, "port": port},
 			"request": reqMeta,
-			"result": map[string]interface{}{
+			"result": map[string]any{
 				"type":        info.Type.String(),
 				"number":      info.Number,
 				"load_memory": info.LoadMemory,
@@ -172,10 +172,10 @@ func runBlockUpload(cmd *cobra.Command, args []string) error {
 		reqMeta := blockUploadConfig.ConnectionRequestMeta()
 		reqMeta["type"] = blockUploadConfig.BlockType
 		reqMeta["number"] = blockUploadConfig.Number
-		out := map[string]interface{}{
-			"target":  map[string]interface{}{"ip": blockUploadConfig.IP, "port": port},
+		out := map[string]any{
+			"target":  map[string]any{"ip": blockUploadConfig.IP, "port": port},
 			"request": reqMeta,
-			"result": map[string]interface{}{
+			"result": map[string]any{
 				"type":   bt.String(),
 				"number": blockUploadConfig.Number,
 				"size":   len(data.Data),

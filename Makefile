@@ -58,7 +58,7 @@ lint: ## Run staticcheck
 
 lint-ci: ## Run golangci-lint v2 (required for .golangci.yml version 2)
 	@echo "Running golangci-lint"
-	@go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3 run ./...
+	@go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
 
 vet: ## Run go vet on project packages
 	@echo "Running go vet"

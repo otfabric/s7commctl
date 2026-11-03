@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -130,7 +131,7 @@ func TestRead_JSONDecodesTypedValues(t *testing.T) {
 	wantField(t, m, "127.0.0.1", "target", "ip")
 	wantField(t, m, float64(7), "request", "address", "db")
 	wantField(t, m, "rack_slot", "request", "connection", "connection_mode")
-	decoded := field(t, m, "result", "decoded").([]interface{})
+	decoded := field(t, m, "result", "decoded").([]any)
 	if len(decoded) != 1 || decoded[0] != float64(258) {
 		t.Fatalf("decoded = %v, want [258]", decoded)
 	}
@@ -195,7 +196,32 @@ func TestRead_NonSuccessOutcomes(t *testing.T) {
 func TestRead_InvalidInput(t *testing.T) {
 	p := newFakePLC(t)
 	runCLI(t, p.args("read", "--area", "Z")...).wantUsage(t, "unknown area")
-	runCLI(t, p.args("read", "--offset", "-1")...).wantFailure(t, "read failed")
+	runCLI(t, p.args("read", "--offset", "-1")...).wantUsage(t, "read failed")
+}
+
+// TestAddressOutOfS7AnyRange: a DB number or offset the S7ANY address cannot
+// carry is refused before anything is sent. go-s7comm before v0.9.0 wrapped
+// them, so --db 65537 wrote to DB 1.
+func TestAddressOutOfS7AnyRange(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flags []string
+	}{
+		{"db above 65535", []string{"--db", "65537"}},
+		{"offset past 24-bit bit address", []string{"--offset", "2097152"}},
+		// Two bytes from the last addressable byte: read --size 2, write --value 0102.
+		{"range ends past 24-bit bit address", []string{"--offset", "2097151"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			runCLI(t, p.args(append([]string{"read", "--size", "2"}, tc.flags...)...)...).wantUsage(t, "read failed")
+			runCLI(t, p.args(append([]string{"write", "--value", "0102", "--dangerous", "--force"}, tc.flags...)...)...).
+				wantUsage(t, "write failed")
+			if w := p.recordedWrites(); len(w) != 0 {
+				t.Fatalf("PLC received a write: %+v", w)
+			}
+		})
+	}
 }
 
 func TestWrite_RequiresDangerous(t *testing.T) {
@@ -290,7 +316,10 @@ func TestWrite_Failures(t *testing.T) {
 	}
 	runCLI(t, base("--value", "01", "--area", "Z")...).wantUsage(t, "unknown area")
 	runCLI(t, base("--value", "xyz")...).wantUsage(t, "invalid value")
-	runCLI(t, base("--value", "1", "--type", "int", "--offset", "-1")...).wantFailure(t, "write failed")
+	runCLI(t, base("--value", "1", "--type", "int", "--offset", "-1")...).wantUsage(t, "write failed")
+	if w := p.recordedWrites(); len(w) != 0 {
+		t.Fatalf("PLC received a write: %+v", w)
+	}
 
 	p.writeRet = 0x05
 	runCLI(t, base("--value", "01")...).wantFailure(t, "write failed")
@@ -637,6 +666,11 @@ func TestRecord_WritesSamples(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if fi, err := os.Stat(out); err != nil {
+				t.Fatal(err)
+			} else if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
+				t.Fatalf("output mode %v, want 0600", fi.Mode().Perm())
+			}
 			lines := strings.Split(strings.TrimSpace(string(b)), "\n")
 			if len(lines) != 2 {
 				t.Fatalf("got %d lines, want 2:\n%s", len(lines), b)
@@ -669,6 +703,6 @@ func TestRecord_Failures(t *testing.T) {
 	runCLI(t, base("--every-ms", "0")...).wantUsage(t, "every-ms must be > 0")
 	runCLI(t, base("--area", "Z")...).wantUsage(t, "unknown area")
 	runCLI(t, base("--local-tsap", "1")...).wantUsage(t, "must be set together")
-	runCLI(t, base("--offset", "-1", "--every-ms", "1", "--count", "1")...).wantFailure(t, "record read failed")
+	runCLI(t, base("--offset", "-1", "--every-ms", "1", "--count", "1")...).wantUsage(t, "record read failed")
 	runCLI(t, p.args("record", "--output", filepath.Join(out, "missing", "file"))...).wantFailure(t, "open output file")
 }

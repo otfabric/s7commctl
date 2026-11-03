@@ -1,5 +1,32 @@
 # s7commctl Releases
 
+## v0.4.0
+
+**Date:** 2026-11-03
+**Previous release:** v0.3.2
+
+### Summary
+
+Built on go-s7comm v0.9.0, which refuses addresses the S7ANY format cannot carry. **Before, `write --db 65537` wrote to DB 1** and an offset past byte 2097151 wrapped the same way; both are now refused before anything is sent. Go 1.26 is the minimum.
+
+### Changed
+
+- **Exit code:** an address or option go-s7comm refuses before sending (negative offset, DB above 65535, a range past the S7ANY limit, `scan --retries -1`, an inverted `probe` rack range) exits 2 (usage) instead of 6 (protocol). See docs/exitcodes.md.
+- **`record`:** the output file is created with mode 0600 instead of 0644; recordings hold process values.
+- **Go:** `go 1.26` (see `go.mod`); CI tests Go 1.26 and 1.27. `go fix` applied.
+
+### Dependencies
+
+- `go-s7comm` → v0.9.0, `go-cotp` → v1.2.0, `go-tpkt` → v1.1.0.
+
+### Tests
+
+- Read and write of a DB above 65535, an offset past the S7ANY range and a range ending past it exit 2 and send no write.
+- Fuzz targets for TPKT frames read from a peer (`sniff`, `replay`) and for replay scripts.
+- SAST (gosec, opengrep) at low severity and low confidence: 2 findings, 0 open (file mode and path of `record`, `replay`; `pcap-decode` paths cleaned the same way).
+
+---
+
 ## v0.3.2
 
 **Date:** 2026-10-31
