@@ -62,8 +62,7 @@ func Execute() {
 	if err == nil {
 		return
 	}
-	var ee *ExitError
-	if errors.As(err, &ee) {
+	if ee, ok := errors.AsType[*ExitError](err); ok {
 		if ee.Err != nil {
 			fmt.Fprintln(os.Stderr, ee.Err)
 		}

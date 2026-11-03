@@ -38,7 +38,7 @@ func TestFormatReadResult_TableAndMeta(t *testing.T) {
 		t.Errorf("table output missing expected parts: %s", s)
 	}
 	// Plain format with connection request
-	meta.ConnectionRequest = map[string]interface{}{"connection_mode": "rack_slot"}
+	meta.ConnectionRequest = map[string]any{"connection_mode": "rack_slot"}
 	s = FormatReadResult(result, "raw", "plain", meta)
 	if !strings.Contains(s, "Result: success") {
 		t.Errorf("plain output: %s", s)
@@ -70,11 +70,11 @@ func TestFormatReadResult_JSONContainsDecoded(t *testing.T) {
 	}
 	meta := &ReadResultMeta{IP: "192.168.1.1", Port: 102, Area: "DB", DBNumber: 1, Offset: 0, RequestedSize: 2}
 	s := FormatReadResult(result, "int", FormatJSON, meta)
-	var out map[string]interface{}
+	var out map[string]any
 	if err := json.Unmarshal([]byte(s), &out); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, s)
 	}
-	res, ok := out["result"].(map[string]interface{})
+	res, ok := out["result"].(map[string]any)
 	if !ok {
 		t.Fatalf("no result object: %v", out)
 	}
@@ -82,7 +82,7 @@ func TestFormatReadResult_JSONContainsDecoded(t *testing.T) {
 	if !ok {
 		t.Fatalf("no decoded field in result: %v", res)
 	}
-	arr, ok := decoded.([]interface{})
+	arr, ok := decoded.([]any)
 	if !ok {
 		t.Fatalf("decoded is not array: %T %v", decoded, decoded)
 	}
@@ -148,7 +148,7 @@ func TestFormatBlocks(t *testing.T) {
 func TestFormatDeviceInfo_JSON(t *testing.T) {
 	info := &model.DeviceInfo{OrderNumber: "6ES7", ModuleName: "CPU"}
 	s := FormatDeviceInfo(info, FormatJSON)
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal([]byte(s), &m); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestDiagBufferResultMap(t *testing.T) {
 		TotalCount: 1,
 	}
 	m := DiagBufferResultMap(diag)
-	ev, ok := m["entries"].([]map[string]interface{})
+	ev, ok := m["entries"].([]map[string]any)
 	if !ok || len(ev) != 1 {
 		t.Errorf("unexpected entries: %v", m)
 	}
@@ -272,7 +272,7 @@ func TestFormatBlocks_Formats(t *testing.T) {
 	if !strings.Contains(table, "│ DB   │      7 │") || !strings.Contains(table, "0x03") {
 		t.Errorf("table:\n%s", table)
 	}
-	var out []map[string]interface{}
+	var out []map[string]any
 	if err := json.Unmarshal([]byte(FormatBlocks(blocks, FormatJSON)), &out); err != nil {
 		t.Fatal(err)
 	}
@@ -351,18 +351,18 @@ func TestFormatReadResult_TextWithoutMeta(t *testing.T) {
 
 func TestFormatReadResult_JSONWithoutMetaAndConnection(t *testing.T) {
 	result := &client.ReadResult{Status: "rejected", Message: "no"}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal([]byte(FormatReadResult(result, "raw", FormatJSON, nil)), &m); err != nil {
 		t.Fatal(err)
 	}
-	res := m["result"].(map[string]interface{})
+	res := m["result"].(map[string]any)
 	if res["status_detail"] != "rejected — no" || res["message"] != "no" {
 		t.Errorf("result = %v", res)
 	}
 	if _, ok := m["target"]; ok {
 		t.Error("target without metadata")
 	}
-	if w, ok := res["warnings"].([]interface{}); !ok || len(w) != 0 {
+	if w, ok := res["warnings"].([]any); !ok || len(w) != 0 {
 		t.Errorf("warnings must be an empty array, got %v", res["warnings"])
 	}
 
@@ -370,11 +370,11 @@ func TestFormatReadResult_JSONWithoutMetaAndConnection(t *testing.T) {
 	if err := json.Unmarshal([]byte(FormatReadResult(result, "raw", FormatJSON, meta)), &m); err != nil {
 		t.Fatal(err)
 	}
-	req := m["request"].(map[string]interface{})
+	req := m["request"].(map[string]any)
 	if _, ok := req["connection"]; ok {
 		t.Error("connection without ConnectionRequest")
 	}
-	if _, ok := req["address"].(map[string]interface{})["db"]; ok {
+	if _, ok := req["address"].(map[string]any)["db"]; ok {
 		t.Error("db for a non-DB area")
 	}
 }
@@ -383,22 +383,22 @@ func TestFormatReadResult_JSONDecodedByType(t *testing.T) {
 	data := []byte{0x3F, 0x80, 0x00, 0x00}
 	for _, tc := range []struct {
 		typ  string
-		want []interface{}
+		want []any
 	}{
-		{"byte", []interface{}{float64(0x3F), float64(0x80), float64(0), float64(0)}},
-		{"INT", []interface{}{float64(0x3F80), float64(0)}},
-		{"word", []interface{}{float64(0x3F80), float64(0)}},
-		{"dint", []interface{}{float64(0x3F800000)}},
-		{"dword", []interface{}{float64(0x3F800000)}},
-		{"real", []interface{}{float64(1)}},
+		{"byte", []any{float64(0x3F), float64(0x80), float64(0), float64(0)}},
+		{"INT", []any{float64(0x3F80), float64(0)}},
+		{"word", []any{float64(0x3F80), float64(0)}},
+		{"dint", []any{float64(0x3F800000)}},
+		{"dword", []any{float64(0x3F800000)}},
+		{"real", []any{float64(1)}},
 	} {
 		t.Run(tc.typ, func(t *testing.T) {
-			var m map[string]interface{}
+			var m map[string]any
 			s := FormatReadResult(&client.ReadResult{Status: "success", Data: data}, tc.typ, FormatJSON, nil)
 			if err := json.Unmarshal([]byte(s), &m); err != nil {
 				t.Fatal(err)
 			}
-			got, _ := m["result"].(map[string]interface{})["decoded"].([]interface{})
+			got, _ := m["result"].(map[string]any)["decoded"].([]any)
 			if len(got) != len(tc.want) {
 				t.Fatalf("decoded = %v, want %v", got, tc.want)
 			}
@@ -457,11 +457,11 @@ func TestFormatReadData_Formats(t *testing.T) {
 	if !strings.Contains(got, "01 02") || !strings.Contains(got, "Interpreted as int:\n[0]: 258\n") {
 		t.Errorf("hex: %q", got)
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal([]byte(FormatReadData([]byte{1, 2}, "int", FormatJSON)), &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["raw_hex"] != "0102" || m["length"] != float64(2) || len(m["values"].([]interface{})) != 1 {
+	if m["raw_hex"] != "0102" || m["length"] != float64(2) || len(m["values"].([]any)) != 1 {
 		t.Errorf("json = %v", m)
 	}
 	if err := json.Unmarshal([]byte(FormatReadData([]byte{1}, "raw", FormatJSON)), &m); err != nil {

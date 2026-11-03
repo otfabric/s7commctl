@@ -20,7 +20,7 @@ jobs:
       test-exclude-regex: "/example(s)?($|/)"
       fuzz-time: 10s
       codecov-name: s7commctl
-      go-versions: '["1.25", "1.26"]'
+      go-versions: '["1.26", "1.27"]'
     secrets: inherit
 
   # go-ci gates the total; this gates each package (COVER_PKG_MIN).

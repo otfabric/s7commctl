@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/spf13/cobra"
@@ -41,7 +42,7 @@ func init() {
 }
 
 func runPcapDecode(cmd *cobra.Command, args []string) error {
-	f, err := os.Open(pdcConfig.File)
+	f, err := os.Open(filepath.Clean(pdcConfig.File))
 	if err != nil {
 		return ExitRuntime(fmt.Errorf("open pcap: %w", err))
 	}

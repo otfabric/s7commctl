@@ -95,8 +95,8 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 			port = 102
 		}
 		req := fingerprintConfig.ConnectionRequestMeta()
-		out := map[string]interface{}{
-			"target":  map[string]interface{}{"ip": fingerprintConfig.IP, "port": port},
+		out := map[string]any{
+			"target":  map[string]any{"ip": fingerprintConfig.IP, "port": port},
 			"request": req,
 			"result":  output.FingerprintResultMap(view),
 		}

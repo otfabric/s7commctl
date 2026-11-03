@@ -181,8 +181,8 @@ func printScanReadRangesTable(res *client.RangeProbeResult) {
 }
 
 // spanToMap returns a map for JSON span output.
-func spanToMap(s client.ReadableSpan) map[string]interface{} {
-	m := map[string]interface{}{"start": s.Start, "end": s.End}
+func spanToMap(s client.ReadableSpan) map[string]any {
+	m := map[string]any{"start": s.Start, "end": s.End}
 	if s.Status != "" {
 		m["status"] = string(s.Status)
 	}
@@ -195,13 +195,13 @@ func printScanReadRangesJSON(res *client.RangeProbeResult) {
 	if port == 0 {
 		port = 102
 	}
-	target := map[string]interface{}{
+	target := map[string]any{
 		"ip":   scanReadRangesConfig.IP,
 		"port": port,
 		"rack": scanReadRangesConfig.Rack,
 		"slot": scanReadRangesConfig.Slot,
 	}
-	req := map[string]interface{}{
+	req := map[string]any{
 		"area":       res.Area.String(),
 		"start":      scanReadRangesConfig.Start,
 		"end":        scanReadRangesConfig.End,
@@ -219,41 +219,41 @@ func printScanReadRangesJSON(res *client.RangeProbeResult) {
 			failedSpans = append(failedSpans, s)
 		}
 	}
-	readable := make([]map[string]interface{}, 0, len(res.Summary.ReadableSpans))
+	readable := make([]map[string]any, 0, len(res.Summary.ReadableSpans))
 	for _, s := range res.Summary.ReadableSpans {
 		readable = append(readable, spanToMap(s))
 	}
-	empty := make([]map[string]interface{}, 0, len(res.Summary.EmptySpans))
+	empty := make([]map[string]any, 0, len(res.Summary.EmptySpans))
 	for _, s := range res.Summary.EmptySpans {
 		empty = append(empty, spanToMap(s))
 	}
-	partial := make([]map[string]interface{}, 0, len(partialSpans))
+	partial := make([]map[string]any, 0, len(partialSpans))
 	for _, s := range partialSpans {
 		partial = append(partial, spanToMap(s))
 	}
-	failed := make([]map[string]interface{}, 0, len(failedSpans))
+	failed := make([]map[string]any, 0, len(failedSpans))
 	for _, s := range failedSpans {
 		failed = append(failed, spanToMap(s))
 	}
-	inconclusive := make([]map[string]interface{}, 0, len(res.Summary.InconclusiveSpans))
+	inconclusive := make([]map[string]any, 0, len(res.Summary.InconclusiveSpans))
 	for _, s := range res.Summary.InconclusiveSpans {
 		inconclusive = append(inconclusive, spanToMap(s))
 	}
-	summary := map[string]interface{}{
+	summary := map[string]any{
 		"readable_count":     len(res.Summary.ReadableSpans),
 		"empty_count":        len(res.Summary.EmptySpans),
 		"partial_count":      len(partialSpans),
 		"failed_count":       len(failedSpans),
 		"inconclusive_count": len(res.Summary.InconclusiveSpans),
 	}
-	spans := map[string]interface{}{
+	spans := map[string]any{
 		"readable":     readable,
 		"empty":        empty,
 		"partial":      partial,
 		"failed":       failed,
 		"inconclusive": inconclusive,
 	}
-	out := map[string]interface{}{
+	out := map[string]any{
 		"target":  target,
 		"request": req,
 		"summary": summary,

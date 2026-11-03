@@ -105,10 +105,10 @@ func runWrite(cmd *cobra.Command, args []string) error {
 			reqMeta["value"] = writeConfig.Value[:maxValuePreview] + "..."
 			reqMeta["value_truncated"] = true
 		}
-		out := map[string]interface{}{
-			"target":  map[string]interface{}{"ip": writeConfig.IP, "port": port},
+		out := map[string]any{
+			"target":  map[string]any{"ip": writeConfig.IP, "port": port},
 			"request": reqMeta,
-			"result":  map[string]interface{}{"ok": true, "written": len(data)},
+			"result":  map[string]any{"ok": true, "written": len(data)},
 		}
 		b, _ := json.MarshalIndent(out, "", "  ")
 		_, _ = fmt.Fprintln(os.Stdout, string(b))

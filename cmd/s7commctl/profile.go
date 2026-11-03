@@ -158,7 +158,7 @@ func yesNo(b bool) string {
 }
 
 func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, hasRecommended bool, recommendedRack, recommendedSlot int, identifyInfo *model.DeviceInfo, identifyOK, identifyFieldsFound bool, blockCount int, blocksOK bool) {
-	result := map[string]interface{}{
+	result := map[string]any{
 		"setup_support":         setupSupport,
 		"rack_slot_confirmed":   confirmedByQuery,
 		"identify_transport_ok": identifyOK,
@@ -170,7 +170,7 @@ func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, 
 		result["recommended_slot"] = recommendedSlot
 	}
 	if identifyInfo != nil {
-		result["identify"] = map[string]interface{}{
+		result["identify"] = map[string]any{
 			"cpu_type":    profileStrOrNull(identifyInfo.CPUType),
 			"order":       profileStrOrNull(identifyInfo.OrderNumber),
 			"module_name": profileStrOrNull(identifyInfo.ModuleName),
@@ -179,16 +179,16 @@ func printProfileJSON(ip string, port int, setupSupport, confirmedByQuery bool, 
 	if blocksOK {
 		result["block_count"] = blockCount
 	}
-	out := map[string]interface{}{
-		"target":  map[string]interface{}{"ip": ip, "port": port},
-		"request": map[string]interface{}{},
+	out := map[string]any{
+		"target":  map[string]any{"ip": ip, "port": port},
+		"request": map[string]any{},
 		"result":  result,
 	}
 	data, _ := json.MarshalIndent(out, "", "  ")
 	_, _ = fmt.Fprintln(os.Stdout, string(data))
 }
 
-func profileStrOrNull(s string) interface{} {
+func profileStrOrNull(s string) any {
 	if s == "" || s == "N/A" {
 		return nil
 	}

@@ -27,3 +27,26 @@ func TestLoadReplayScript(t *testing.T) {
 		t.Fatalf("unexpected frame length %d", len(frames[0]))
 	}
 }
+
+// FuzzLoadReplayScript: a script either loads or is refused, and every loaded
+// response is a TPKT frame start.
+func FuzzLoadReplayScript(f *testing.F) {
+	f.Add("# comment\n0300000702F080\n03 00 00 07 02 F0 80\n")
+	f.Add("zz\n")
+	f.Add("0400000702F080\n")
+	f.Fuzz(func(t *testing.T, content string) {
+		path := filepath.Join(t.TempDir(), "script.txt")
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		frames, err := loadReplayScript(path)
+		if err != nil {
+			return
+		}
+		for _, b := range frames {
+			if len(b) < 4 || b[0] != 0x03 {
+				t.Fatalf("loaded a non-TPKT response % X", b)
+			}
+		}
+	})
+}

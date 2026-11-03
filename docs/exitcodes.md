@@ -6,7 +6,7 @@ s7commctl's exit codes are a script-facing contract (`cmd/s7commctl/exit.go`). T
 |------|------|---------|
 | 0 | ok | Success |
 | 1 | findings | The operation completed and reports a non-success: `probe` found no valid rack/slot, a short read with `--strict-read` |
-| 2 | usage | Invalid flags, missing required arguments, malformed input, a write without `--dangerous` or aborted at the prompt |
+| 2 | usage | Invalid flags, missing required arguments, malformed input, an address go-s7comm refuses before sending (negative offset, DB above 65535, a range past the S7ANY address limit), a write without `--dangerous` or aborted at the prompt |
 | 3 | invalid_input | A request larger than the negotiated PDU |
 | 4 | transport | Connecting failed, the connection is lost, a listener cannot start |
 | 5 | timeout | A deadline passed |
@@ -16,6 +16,10 @@ s7commctl's exit codes are a script-facing contract (`cmd/s7commctl/exit.go`). T
 | 130 | interrupted | SIGINT or SIGTERM before a result. `record` stopped this way ends with 0 |
 
 `S7COMMCTL_FORMAT` sets the default of `--format`; `S7COMMCTL_OUTPUT_FORMAT` is accepted too and `S7COMMCTL_FORMAT` wins.
+
+## Change in v0.4.0
+
+An address or option that go-s7comm refuses before anything is sent (a `*client.ValidationError`, for example `--offset -1`, `--db 65537`, `scan --retries -1`) exits 2 instead of 6. Nothing reached the PLC, so 6 ("the PLC refused") was wrong.
 
 ## Mapping from versions before v0.3.0
 

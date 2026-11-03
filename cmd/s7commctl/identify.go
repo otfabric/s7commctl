@@ -72,8 +72,8 @@ func runIdentify(cmd *cobra.Command, args []string) error {
 			port = 102
 		}
 		req := identifyConfig.ConnectionRequestMeta()
-		out := map[string]interface{}{
-			"target":  map[string]interface{}{"ip": identifyConfig.IP, "port": port},
+		out := map[string]any{
+			"target":  map[string]any{"ip": identifyConfig.IP, "port": port},
 			"request": req,
 			"result":  output.DeviceInfoResultMap(info),
 		}

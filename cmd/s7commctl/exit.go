@@ -92,6 +92,9 @@ func classify(err error, def int) int {
 		return codeTimeout
 	case errors.Is(err, fs.ErrPermission):
 		return codePermission
+	case errors.As(err, new(*client.ValidationError)):
+		// go-s7comm refused the address or option before anything was sent.
+		return codeUsage
 	case errors.Is(err, client.ErrRequestExceedsPDU):
 		return codeInvalidInput
 	case errors.Is(err, client.ErrProtocolFailure), errors.Is(err, wire.ErrTruncatedItemHeader),
@@ -112,8 +115,7 @@ func exitCode(err error) int {
 	if err == nil {
 		return codeOK
 	}
-	var ee *ExitError
-	if errors.As(err, &ee) {
+	if ee, ok := errors.AsType[*ExitError](err); ok {
 		return ee.Code
 	}
 	return codeUsage

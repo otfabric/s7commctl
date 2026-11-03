@@ -77,8 +77,8 @@ func (c DeviceConfig) UseExplicitTSAP() bool {
 
 // ConnectionRequestMeta returns a map for JSON "request" describing connection mode and params (connection_mode, rack, slot, local_tsap, remote_tsap).
 // Use when building target/request/result envelopes so request reflects actual mode instead of raw rack/slot when TSAP or auto-rack is used.
-func (c DeviceConfig) ConnectionRequestMeta() map[string]interface{} {
-	out := make(map[string]interface{})
+func (c DeviceConfig) ConnectionRequestMeta() map[string]any {
+	out := make(map[string]any)
 	if c.UseExplicitTSAP() {
 		out["connection_mode"] = "explicit_tsap"
 		out["local_tsap"] = c.LocalTSAP
@@ -261,10 +261,7 @@ func (c ProbeRackSlotConfig) ToProbeRequest() (client.RackSlotProbeRequest, erro
 	req.StopOnFirst = c.First
 	req.Strict = c.Strict
 	req.Confirm = parseConfirmKind(c.Confirm, c.Strict)
-	req.Retries = c.Retries
-	if req.Retries < 0 {
-		req.Retries = 0
-	}
+	req.Retries = max(c.Retries, 0)
 	req.RetryDelay = time.Duration(c.RetryDelayMS) * time.Millisecond
 	req.StopOnFirstConfirmed = c.FirstConfirmed
 	if c.LocalTSAP != "" || c.RemoteTSAP != "" {
@@ -370,7 +367,7 @@ func parseConfirmKind(s string, strict bool) client.ConfirmationKind {
 }
 
 // RegisterFlags registers flags based on struct tags
-func RegisterFlags(cmd *cobra.Command, cfg interface{}) {
+func RegisterFlags(cmd *cobra.Command, cfg any) {
 	v := reflect.ValueOf(cfg).Elem()
 	t := v.Type()
 
@@ -403,7 +400,7 @@ func RegisterFlags(cmd *cobra.Command, cfg interface{}) {
 }
 
 // LoadFromEnv populates config from environment
-func LoadFromEnv(cfg interface{}) {
+func LoadFromEnv(cfg any) {
 	v := reflect.ValueOf(cfg).Elem()
 	t := v.Type()
 

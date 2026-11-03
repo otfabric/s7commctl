@@ -105,9 +105,7 @@ func (p *fakePLC) acceptLoop() {
 		p.conns[conn] = struct{}{}
 		p.dials++
 		p.mu.Unlock()
-		p.wg.Add(1)
-		go func() {
-			defer p.wg.Done()
+		p.wg.Go(func() {
 			defer func() {
 				_ = conn.Close()
 				p.mu.Lock()
@@ -115,7 +113,7 @@ func (p *fakePLC) acceptLoop() {
 				p.mu.Unlock()
 			}()
 			p.serve(conn)
-		}()
+		})
 	}
 }
 
@@ -378,6 +376,9 @@ func tpktFrame(tpdu []byte) []byte {
 
 // s7ReadRequestFrame is a complete TPKT frame holding an S7 Read Var job.
 func s7ReadRequestFrame(ref uint16) []byte {
-	req := wire.EncodeReadVarRequest(ref, []wire.S7AnyAddress{{Area: 0x84, DBNumber: 1, Start: 0, Size: 2}})
+	req, err := wire.EncodeReadVarRequest(ref, []wire.S7AnyAddress{{Area: 0x84, DBNumber: 1, Start: 0, Size: 2}})
+	if err != nil {
+		panic(err)
+	}
 	return tpktFrame(append([]byte{0x02, 0xF0, 0x80}, req...))
 }

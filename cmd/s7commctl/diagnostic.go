@@ -73,10 +73,10 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 			port = 102
 		}
 		reqMeta := diagnosticConfig.ConnectionRequestMeta()
-		out := map[string]interface{}{
-			"target":  map[string]interface{}{"ip": diagnosticConfig.IP, "port": port},
+		out := map[string]any{
+			"target":  map[string]any{"ip": diagnosticConfig.IP, "port": port},
 			"request": reqMeta,
-			"result": map[string]interface{}{
+			"result": map[string]any{
 				"cpu_state":        cpuState.String(),
 				"protection_level": protection.String(),
 				"diagnostic":       output.DiagBufferResultMap(diag),
@@ -103,8 +103,8 @@ func diagnosticErrorJSON(cfg config.DiagnosticConfig, prefix string, err error) 
 		port = 102
 	}
 	reqMeta := cfg.ConnectionRequestMeta()
-	out := map[string]interface{}{
-		"target":  map[string]interface{}{"ip": cfg.IP, "port": port},
+	out := map[string]any{
+		"target":  map[string]any{"ip": cfg.IP, "port": port},
 		"request": reqMeta,
 		"error":   map[string]string{"code": "runtime", "message": prefix + ": " + err.Error()},
 	}

@@ -200,9 +200,9 @@ func (r cliResult) wantCode(t *testing.T, msg string, match func(int) bool, want
 }
 
 // jsonOut decodes stdout as one JSON object.
-func (r cliResult) jsonOut(t *testing.T) map[string]interface{} {
+func (r cliResult) jsonOut(t *testing.T) map[string]any {
 	t.Helper()
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal([]byte(r.stdout), &m); err != nil {
 		t.Fatalf("stdout is not a JSON object: %v\n%s", err, r.stdout)
 	}
@@ -210,11 +210,11 @@ func (r cliResult) jsonOut(t *testing.T) map[string]interface{} {
 }
 
 // field walks nested JSON objects along path and fails the test if one is missing.
-func field(t *testing.T, m map[string]interface{}, path ...string) interface{} {
+func field(t *testing.T, m map[string]any, path ...string) any {
 	t.Helper()
-	var cur interface{} = m
+	var cur any = m
 	for _, p := range path {
-		obj, ok := cur.(map[string]interface{})
+		obj, ok := cur.(map[string]any)
 		if !ok {
 			t.Fatalf("%v: %q is not inside an object: %v", path, p, cur)
 		}
@@ -225,7 +225,7 @@ func field(t *testing.T, m map[string]interface{}, path ...string) interface{} {
 	return cur
 }
 
-func wantField(t *testing.T, m map[string]interface{}, want interface{}, path ...string) {
+func wantField(t *testing.T, m map[string]any, want any, path ...string) {
 	t.Helper()
 	if got := field(t, m, path...); got != want {
 		t.Errorf("%v = %v (%T), want %v (%T)", path, got, got, want, want)

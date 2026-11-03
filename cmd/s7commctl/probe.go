@@ -51,14 +51,11 @@ func runProbeRackSlot(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return ExitUsage(err)
 	}
-	repeat := probeRackSlotConfig.Repeat
-	if repeat < 1 {
-		repeat = 1
-	}
+	repeat := max(probeRackSlotConfig.Repeat, 1)
 	interval := time.Duration(probeRackSlotConfig.RepeatIntervalMS) * time.Millisecond
 
 	var results []*client.RackSlotProbeResult
-	for i := 0; i < repeat; i++ {
+	for i := range repeat {
 		result, err := client.ProbeRackSlots(cmd.Context(), req)
 		if err != nil {
 			return ExitRuntime(fmt.Errorf("probe failed: %w", err))
@@ -405,8 +402,8 @@ func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, result
 	if port == 0 {
 		port = 102
 	}
-	target := map[string]interface{}{"ip": cfg.IP, "port": port}
-	request := map[string]interface{}{
+	target := map[string]any{"ip": cfg.IP, "port": port}
+	request := map[string]any{
 		"rack_min": cfg.RackMin,
 		"rack_max": cfg.RackMax,
 		"slot_min": cfg.SlotMin,
@@ -416,9 +413,9 @@ func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, result
 	}
 
 	strict := opts.Strict
-	candidates := make([]map[string]interface{}, 0, len(res.Candidates))
+	candidates := make([]map[string]any, 0, len(res.Candidates))
 	for _, c := range res.Candidates {
-		candidates = append(candidates, map[string]interface{}{
+		candidates = append(candidates, map[string]any{
 			"rack":         c.Rack,
 			"slot":         c.Slot,
 			"stage":        string(c.Stage),
@@ -429,9 +426,9 @@ func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, result
 			"error":        c.Error,
 		})
 	}
-	valid := make([]map[string]interface{}, 0, len(res.Valid))
+	valid := make([]map[string]any, 0, len(res.Valid))
 	for _, c := range res.Valid {
-		valid = append(valid, map[string]interface{}{
+		valid = append(valid, map[string]any{
 			"rack":         c.Rack,
 			"slot":         c.Slot,
 			"stage":        string(c.Stage),
@@ -442,7 +439,7 @@ func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, result
 			"error":        c.Error,
 		})
 	}
-	resultObj := map[string]interface{}{
+	resultObj := map[string]any{
 		"candidates":         candidates,
 		"valid":              valid,
 		"setup_accepted":     res.SetupAccepted,
@@ -455,7 +452,7 @@ func printProbeResultJSON(res *client.RackSlotProbeResult, variance bool, result
 		resultObj["results_varied"] = variance
 	}
 
-	out := map[string]interface{}{
+	out := map[string]any{
 		"target":  target,
 		"request": request,
 		"result":  resultObj,

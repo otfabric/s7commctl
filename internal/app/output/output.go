@@ -20,17 +20,17 @@ const (
 	FormatHex   = "hex"
 )
 
-func PrintJSON(v interface{}) {
+func PrintJSON(v any) {
 	data, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Println(string(data))
 }
 
 // DeviceInfoResultMap returns the result object for identify (for use in target/request/result envelope).
-func DeviceInfoResultMap(info *model.DeviceInfo) map[string]interface{} {
+func DeviceInfoResultMap(info *model.DeviceInfo) map[string]any {
 	if info == nil {
 		return nil
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"order_number":  strOrNull(info.OrderNumber),
 		"serial_number": strOrNull(info.SerialNumber),
 		"module_name":   strOrNull(info.ModuleName),
@@ -79,7 +79,7 @@ func FormatDeviceInfo(info *model.DeviceInfo, format string) string {
 }
 
 // strOrNull returns nil for empty s so JSON marshals as null.
-func strOrNull(s string) interface{} {
+func strOrNull(s string) any {
 	if s == "" {
 		return nil
 	}
@@ -110,9 +110,9 @@ func writeRow(sb *strings.Builder, key, value string) {
 func FormatBlocks(blocks []model.BlockInfo, format string) string {
 	switch format {
 	case FormatJSON:
-		out := make([]map[string]interface{}, 0, len(blocks))
+		out := make([]map[string]any, 0, len(blocks))
 		for _, b := range blocks {
-			out = append(out, map[string]interface{}{
+			out = append(out, map[string]any{
 				"type":        b.Type.String(),
 				"number":      b.Number,
 				"language":    b.Language.String(),
@@ -173,11 +173,11 @@ type FingerprintView struct {
 }
 
 // FingerprintResultMap returns the fingerprint result object (for use in target/request/result envelope).
-func FingerprintResultMap(view *FingerprintView) map[string]interface{} {
+func FingerprintResultMap(view *FingerprintView) map[string]any {
 	if view == nil {
 		return nil
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"cpu_type":             strOrNull(view.CPUType),
 		"cpu_generation":       view.CPUGeneration,
 		"order_number":         strOrNull(view.OrderNumber),
@@ -225,13 +225,13 @@ func FormatFingerprint(view *FingerprintView, format string) string {
 }
 
 // DiagBufferResultMap returns the diagnostic buffer result object (for use in target/request/result envelope).
-func DiagBufferResultMap(diag *model.DiagBuffer) map[string]interface{} {
+func DiagBufferResultMap(diag *model.DiagBuffer) map[string]any {
 	if diag == nil {
 		return nil
 	}
-	entries := make([]map[string]interface{}, 0, len(diag.Entries))
+	entries := make([]map[string]any, 0, len(diag.Entries))
 	for _, e := range diag.Entries {
-		entries = append(entries, map[string]interface{}{
+		entries = append(entries, map[string]any{
 			"timestamp":   strOrNull(e.Timestamp),
 			"event_id":    e.EventID,
 			"event_class": e.EventClass,
@@ -241,7 +241,7 @@ func DiagBufferResultMap(diag *model.DiagBuffer) map[string]interface{} {
 			"info2":       e.Info2,
 		})
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"total_count": diag.TotalCount,
 		"entries":     entries,
 	}
@@ -275,7 +275,7 @@ func FormatHexDump(data []byte) string {
 	var sb strings.Builder
 	for i := 0; i < len(data); i += 16 {
 		_, _ = fmt.Fprintf(&sb, "%08X  ", i)
-		for j := 0; j < 16; j++ {
+		for j := range 16 {
 			if i+j < len(data) {
 				_, _ = fmt.Fprintf(&sb, "%02X ", data[i+j])
 			} else {
@@ -310,7 +310,7 @@ type ReadResultMeta struct {
 	DBNumber          int
 	Offset            int
 	RequestedSize     int
-	ConnectionRequest map[string]interface{} // optional; connection_mode and mode-specific params
+	ConnectionRequest map[string]any // optional; connection_mode and mode-specific params
 }
 
 // FormatReadResult formats a ReadResult with status, requested/returned length, warnings, and data.
@@ -330,7 +330,7 @@ func FormatReadResult(result *client.ReadResult, dataType, format string, meta *
 		if warnings == nil {
 			warnings = []string{}
 		}
-		res := map[string]interface{}{
+		res := map[string]any{
 			"status":           status,
 			"status_detail":    statusDetail,
 			"requested_length": result.RequestedLength,
@@ -346,14 +346,14 @@ func FormatReadResult(result *client.ReadResult, dataType, format string, meta *
 				res["decoded"] = decoded
 			}
 		}
-		out := map[string]interface{}{"result": res}
+		out := map[string]any{"result": res}
 		if meta != nil {
-			target := map[string]interface{}{"ip": meta.IP, "port": meta.Port}
-			request := make(map[string]interface{})
+			target := map[string]any{"ip": meta.IP, "port": meta.Port}
+			request := make(map[string]any)
 			if len(meta.ConnectionRequest) > 0 {
 				request["connection"] = meta.ConnectionRequest
 			}
-			addr := map[string]interface{}{"area": meta.Area, "offset": meta.Offset, "size": meta.RequestedSize}
+			addr := map[string]any{"area": meta.Area, "offset": meta.Offset, "size": meta.RequestedSize}
 			if strings.ToUpper(meta.Area) == "DB" {
 				addr["db"] = meta.DBNumber
 			}
@@ -393,8 +393,8 @@ func FormatReadResult(result *client.ReadResult, dataType, format string, meta *
 }
 
 // decodeValuesForJSON returns decoded values for JSON result.decoded (one value per element for typed reads).
-func decodeValuesForJSON(data []byte, dataType string) []interface{} {
-	var out []interface{}
+func decodeValuesForJSON(data []byte, dataType string) []any {
+	var out []any
 	switch strings.ToLower(dataType) {
 	case "bool":
 		for i := 0; i < len(data)*8 && i < 64; i++ {
@@ -486,7 +486,7 @@ func FormatReadData(data []byte, dataType, format string) string {
 
 	switch format {
 	case FormatJSON:
-		result := map[string]interface{}{
+		result := map[string]any{
 			"raw_hex": hex.EncodeToString(data),
 			"length":  len(data),
 		}
