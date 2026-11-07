@@ -132,6 +132,8 @@ make build
 s7commctl --help
 ```
 
+Every command and flag is listed in [docs/commands.md](docs/commands.md).
+
 ### Command tree
 
 ```text
