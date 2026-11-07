@@ -13,12 +13,15 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/otfabric/go-s7comm/client"
 	"github.com/otfabric/go-s7comm/wire"
+
+	"github.com/otfabric/s7commctl/internal/buildinfo"
 )
 
 // startServer runs a listening command (sniff, replay) in the background and
@@ -600,18 +603,47 @@ func TestOutputValue(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
-	old := [4]string{buildVersion, buildTag, buildCommit, buildDateStr}
-	t.Cleanup(func() { SetBuildInfo(old[0], old[1], old[2], old[3]) })
-
-	SetBuildInfo("1.2.3", "", "abc", "today")
-	r := runCLI(t, "version").ok(t)
-	if r.stdout != "s7commctl version 1.2.3 (commit: abc, built: today)\n" {
-		t.Errorf("stdout = %q", r.stdout)
+	const sha = "1802d0f9afe8642d1e278120b76fcdfac967cb9e"
+	t.Cleanup(func() { SetBuildInfo("", "", "", "") })
+	libText, libJSON := "", []string{}
+	for _, l := range buildinfo.Get("s7commctl").Libraries {
+		libText += l.Name + " " + l.Version + ", "
+		libJSON = append(libJSON, `{"name":"`+l.Name+`","version":"`+l.Version+`"}`)
 	}
-	SetBuildInfo("1.2.3", "v1.2.3", "abc", "today")
-	r = runCLI(t, "version").ok(t)
-	if r.stdout != "s7commctl version 1.2.3 (tag: v1.2.3, commit: abc, built: today)\n" {
-		t.Errorf("stdout = %q", r.stdout)
+	// The libraries come from the build info, which test binaries of Go 1.26 lack:
+	// the e2e suite checks them on the real binary.
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+	tail := libText + runtime.Version() + ", " + platform + ")\n"
+
+	SetBuildInfo("1.2.3", "", sha, "2026-11-05T15:41:49Z")
+	if r := runCLI(t, "version").ok(t); r.stdout != "s7commctl 1.2.3 (commit "+sha+", built 2026-11-05T15:41:49Z, "+tail {
+		t.Errorf("without tag: stdout = %q", r.stdout)
+	}
+	SetBuildInfo("1.2.3", "v1.2.3", sha, "2026-11-05T15:41:49Z")
+	text := "s7commctl 1.2.3 (tag v1.2.3, commit " + sha + ", built 2026-11-05T15:41:49Z, " + tail
+	if r := runCLI(t, "version").ok(t); r.stdout != text {
+		t.Errorf("stdout = %q, want %q", r.stdout, text)
+	}
+	js := `{"name":"s7commctl","version":"1.2.3","tag":"v1.2.3","commit":"` + sha + `","built":"2026-11-05T15:41:49Z","libraries":[` +
+		strings.Join(libJSON, ",") + `],"go":"` + runtime.Version() + `","platform":"` + platform + "\"}\n"
+	if r := runCLI(t, "version", "--json").ok(t); r.stdout != js {
+		t.Errorf("--json: stdout = %q, want %q", r.stdout, js)
+	}
+	t.Setenv("S7COMMCTL_FORMAT", "json")
+	if r := runCLI(t, "version").ok(t); r.stdout != js {
+		t.Errorf("S7COMMCTL_FORMAT=json: stdout = %q", r.stdout)
+	}
+	t.Setenv("S7COMMCTL_FORMAT", "table")
+	if r := runCLI(t, "version").ok(t); r.stdout != text {
+		t.Errorf("S7COMMCTL_FORMAT=table: stdout = %q", r.stdout)
+	}
+	t.Setenv("S7COMMCTL_FORMAT", "")
+	SetBuildInfo("", "", "", "")
+	if r := runCLI(t, "version").ok(t); strings.Contains(r.stdout, "tag ") || !strings.Contains(r.stdout, "built unknown, ") {
+		t.Errorf("development build: stdout = %q", r.stdout)
+	}
+	if r := runCLI(t, "version", "extra"); r.err == nil {
+		t.Error("version accepted an argument")
 	}
 }
 
@@ -620,13 +652,13 @@ func TestExecute_Success(t *testing.T) {
 	t.Cleanup(func() { resetCommands(context.Background()) })
 	rootCmd.SetArgs([]string{"version"})
 	stdout, _ := captureOutput(t, Execute)
-	if !strings.HasPrefix(stdout, "s7commctl version ") {
+	if !strings.HasPrefix(stdout, "s7commctl ") || strings.Count(stdout, "\n") != 1 {
 		t.Fatalf("stdout = %q", stdout)
 	}
 }
 
 func TestCompletion_Scripts(t *testing.T) {
-	for shell, want := range map[string]string{"bash": "bash completion", "zsh": "#compdef s7commctl", "fish": "fish completion"} {
+	for shell, want := range map[string]string{"bash": "bash completion", "zsh": "#compdef s7commctl", "fish": "fish completion", "powershell": "Register-ArgumentCompleter"} {
 		t.Run(shell, func(t *testing.T) {
 			runCLI(t, "completion", shell).ok(t).has(t, want)
 		})

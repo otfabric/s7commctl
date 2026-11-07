@@ -1,5 +1,28 @@
 # s7commctl Releases
 
+## v0.6.0
+
+**Date:** 2026-11-07
+**Previous release:** v0.5.0
+
+### Summary
+
+`version` prints one line, as every OT Fabric CLI does, or JSON with `--json`. Shell completion supports PowerShell, completes the formats each command accepts and `.pcap` files, and no longer offers file names for addresses and numbers.
+
+### Added
+
+- `version --json` (and `version` with `S7COMMCTL_FORMAT=json`): one object `{"name","version","tag","commit","built","libraries","go","platform"}`, every key present; `libraries` lists the OT Fabric libraries of the build (go-cotp, go-s7comm, go-tpkt) with their versions.
+- `completion powershell`. `completion` refused it: its own command allowed only bash, zsh and fish.
+- `--format` completes the formats its command lists (`discover`: json, table, text; `scan read-ranges`: json, table, spans; `record`: jsonl, hex; …), the union only where the usage lists none. `pcap-decode --file` completes `.pcap` files, `replay --script` and `record --output` any file; every other value flag (IP, port, TSAP, numbers) and argument completes nothing instead of file names.
+
+### Changed
+
+- `version` prints `s7commctl 0.6.0 (tag v0.6.0, commit <sha>, built <date>, go-cotp 1.2.0, go-s7comm 0.12.0, go-tpkt 1.1.0, go1.26.10, linux/amd64)` instead of `s7commctl version 0.6.0 (tag: v0.6.0, commit: <short sha>, built: <date>)`: no `version` word and colons, the full commit, the libraries, Go version and platform. A build without a tag leaves out the tag; a development build (a pseudo-version too) is `dev`, with the commit Go embeds (`-dirty` when modified). Scripts that read the old line should use `version --json`.
+- `completion bash` writes the bash-completion v2 script (`GenBashCompletionV2`), which completes flag values with descriptions.
+- `make build` injects the full commit SHA, and a version and tag only when HEAD is exactly on a tag (otherwise the binary reports `dev`).
+
+---
+
 ## v0.5.0
 
 **Date:** 2026-11-07
