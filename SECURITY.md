@@ -1,5 +1,12 @@
 # Security
 
+## Supported versions
+
+| Version | Supported |
+| ------- | --------- |
+| v0.5.x (latest release) | Yes |
+| Older releases | No |
+
 ## Reporting a vulnerability
 
 If you believe you have found a security vulnerability in s7commctl, please report it responsibly.
