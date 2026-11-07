@@ -13,7 +13,7 @@ s7commctl version
 **Example output:**
 
 ```
-s7commctl version dev (commit: unknown, built: unknown)
+s7commctl dev (commit 318699a2628650e9a074a289eab3f1cf78c6a7ae-dirty, built unknown, go-cotp 1.2.0, go-s7comm 0.12.0, go-tpkt 1.1.0, go1.27.3, darwin/arm64)
 ```
 
 ---

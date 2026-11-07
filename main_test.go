@@ -35,7 +35,7 @@ func TestMain_Version(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "s7commctl version 9.9.9-test") {
+	if !strings.HasPrefix(string(out), "s7commctl 9.9.9-test (") {
 		t.Fatalf("stdout = %q", out)
 	}
 }
@@ -75,7 +75,7 @@ func TestBinary_ExitCodes(t *testing.T) {
 		return code, outBuf.String(), errBuf.String()
 	}
 
-	if code, stdout, _ := run("version"); code != 0 || !strings.HasPrefix(stdout, "s7commctl version ") {
+	if code, stdout, _ := run("version"); code != 0 || !strings.HasPrefix(stdout, "s7commctl ") {
 		t.Errorf("version: exit %d, stdout %q", code, stdout)
 	}
 

@@ -142,3 +142,18 @@ One compact object per line.
 | `error` | Omitted when there is none |
 
 `summary` is go-s7comm's `wire.FrameSummary` as it marshals, so its keys are **not** snake_case: `TPDULength`, `COTPType`, `ROSCTR`, `Function`, `ParamLength`, `DataLength`, `ErrorClass`, `ErrorCode`, all numbers.
+
+### `version`
+
+`version --json` (or `S7COMMCTL_FORMAT=json`) writes one object without the envelope, keys in this order, every key present:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | string | `s7commctl` |
+| `version` | string | Without the leading `v`; `dev` for a development build |
+| `tag` | string | The git tag; `""` without one |
+| `commit` | string | The full commit; `-dirty` for a modified tree; `unknown` when not known |
+| `built` | string | RFC 3339 build date, or `unknown` |
+| `libraries` | array | The OT Fabric libraries of the build: `name` (`go-s7comm`), `version`. Never null |
+| `go` | string | Go version (`go1.26.10`) |
+| `platform` | string | `linux/amd64` |

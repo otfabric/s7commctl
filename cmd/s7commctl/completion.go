@@ -3,11 +3,11 @@
 package s7commctl
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/otfabric/s7commctl/internal/cli"
 )
 
 // Completion enum sets for flags (read-only; used by shell completion).
@@ -24,51 +24,58 @@ func init() {
 	rootCmd.AddCommand(completionCmd)
 }
 
+// completionShells are the shells "completion" writes a script for.
+var completionShells = []string{"bash", "zsh", "fish", "powershell"}
+
 var completionCmd = &cobra.Command{
-	Use:   "completion [bash|zsh|fish]",
+	Use:   "completion [bash|zsh|fish|powershell]",
 	Short: "Generate shell completion script",
-	Long: `Generate a shell completion script for bash, zsh, or fish.
-Load the script in your shell to get tab-completion of commands and flags.
-
-Examples:
-  # Bash (current session)
-  source <(s7commctl completion bash)
-  # Bash (persistent)
-  s7commctl completion bash > /etc/bash_completion.d/s7commctl
-
-  # Zsh
-  source <(s7commctl completion zsh)
-
-  # Fish
-  s7commctl completion fish | source
-`,
-	ValidArgs: []string{"bash", "zsh", "fish"},
+	Long: `Generate a shell completion script for bash, zsh, fish or PowerShell; README.md,
+"Shell completion", says where to put it. Commands, flags and the values of the flags
+with a fixed set of them (--area, --type, --format, --confirm, --profile) complete; the
+pcap file of pcap-decode completes .pcap files.`,
+	ValidArgs: completionShells,
 	Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		shell := args[0]
-		switch shell {
+		root, out := cmd.Root(), cmd.OutOrStdout()
+		switch args[0] {
 		case "bash":
-			return rootCmd.GenBashCompletion(os.Stdout)
+			return root.GenBashCompletionV2(out, true)
 		case "zsh":
-			return rootCmd.GenZshCompletion(os.Stdout)
+			return root.GenZshCompletion(out)
 		case "fish":
-			return rootCmd.GenFishCompletion(os.Stdout, true)
+			return root.GenFishCompletion(out, true)
 		default:
-			return fmt.Errorf("unsupported shell: %s", shell)
+			return root.GenPowerShellCompletionWithDesc(out)
 		}
 	},
 }
 
-// registerCompletions walks the command tree and registers flag completion for enum flags.
-func registerCompletions(c *cobra.Command) {
+// registerCompletions registers the completion of every flag and argument of the tree:
+// the enum flags, the pcap file of pcap-decode, and nothing (not file names) for every
+// other flag that takes a value (an address, a number, a TSAP) and every argument.
+// Calling it again changes nothing.
+func registerCompletions(root *cobra.Command) {
+	registerEnumCompletions(root)
+	cli.CompleteTree(root, cli.Completion{
+		Files: map[string][]string{
+			"pcap-decode --file": {"pcap"},
+			"replay --script":    {},
+			"record --output":    {},
+		},
+	})
+}
+
+// registerEnumCompletions walks the command tree and registers flag completion for enum flags.
+func registerEnumCompletions(c *cobra.Command) {
 	for _, sub := range c.Commands() {
-		registerCompletions(sub)
+		registerEnumCompletions(sub)
 		// Per-command flag completions
 		if f := sub.Flags().Lookup("area"); f != nil {
 			_ = sub.RegisterFlagCompletionFunc("area", fixedCompletion(completionAreas))
 		}
 		if f := sub.Flags().Lookup("format"); f != nil {
-			_ = sub.RegisterFlagCompletionFunc("format", fixedCompletion(completionFormats))
+			_ = sub.RegisterFlagCompletionFunc("format", fixedCompletion(formatsOf(f.Usage)))
 		}
 		if f := sub.Flags().Lookup("confirm"); f != nil {
 			_ = sub.RegisterFlagCompletionFunc("confirm", fixedCompletion(completionConfirm))
@@ -88,6 +95,23 @@ func registerCompletions(c *cobra.Command) {
 			}
 		}
 	}
+}
+
+// formatsOf returns the formats a --format usage lists ("Output format: json, table,
+// text"), or every format when it lists none.
+func formatsOf(usage string) []string {
+	_, list, ok := strings.Cut(usage, "Output format: ")
+	if !ok {
+		return completionFormats
+	}
+	list, _, _ = strings.Cut(list, " [")
+	var out []string
+	for v := range strings.SplitSeq(list, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // fixedCompletion returns a completion function that suggests the given words, filtered by toComplete.

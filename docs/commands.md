@@ -101,7 +101,7 @@ Connect to each candidate (rack/slot), perform the same read, report results and
 
 ## `s7commctl completion`
 
-Generate a shell completion script for bash, zsh, or fish: `s7commctl completion bash`, `s7commctl completion zsh` or `s7commctl completion fish`.
+Generate a shell completion script for bash, zsh, fish or PowerShell: `s7commctl completion bash`, `zsh`, `fish` or `powershell`; README.md, "Shell completion", says where to put it.
 
 No flags.
 
@@ -410,9 +410,18 @@ Listens for raw TPKT frames on a local TCP socket and decodes them without initi
 
 ## `s7commctl version`
 
-Print version information
+Print version information: one line on stdout, or one JSON object with `--json` (or `S7COMMCTL_FORMAT=json`).
 
-No flags.
+| Flag | Type | Meaning |
+|---|---|---|
+| `--json` | bool | Print the version as one JSON object |
+
+```text
+s7commctl 0.6.0 (tag v0.6.0, commit 1802d0f9afe8642d1e278120b76fcdfac967cb9e, built 2026-11-05T15:41:49Z, go-cotp 1.2.0, go-s7comm 0.12.0, go-tpkt 1.1.0, go1.26.10, linux/amd64)
+{"name":"s7commctl","version":"0.6.0","tag":"v0.6.0","commit":"1802d0f9afe8642d1e278120b76fcdfac967cb9e","built":"2026-11-05T15:41:49Z","libraries":[{"name":"go-cotp","version":"1.2.0"},{"name":"go-s7comm","version":"0.12.0"},{"name":"go-tpkt","version":"1.1.0"}],"go":"go1.26.10","platform":"linux/amd64"}
+```
+
+The OT Fabric libraries the binary is built with follow the build date. A build without a tag leaves out `tag …, ` (and has `"tag": ""`); a development build (`go build`, `go run`, `make build` off a tag) is version `dev`, with the commit Go embeds (`-dirty` for a modified tree) and build date `unknown`.
 
 ## `s7commctl write`
 

@@ -11,11 +11,12 @@ export GOWORK := off
 APP_NAME       = s7commctl
 APP_SRC        = main.go
 ARCHS          = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
-COMMIT         := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+COMMIT         := $(shell git rev-parse HEAD 2>/dev/null)
 BUILD_DATE     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 TAG            := $(shell git describe --tags --exact-match 2>/dev/null || echo "")
-# Strip leading v for display/artifacts; fall back to dev when not in a git repo
-VERSION        := $(shell desc=$$(git describe --tags --always --dirty 2>/dev/null); if [ -z "$$desc" ]; then echo dev; else echo "$$desc" | sed 's/^v//'; fi)
+# VERSION and TAG only when HEAD is exactly on a tag (leading v stripped); otherwise the
+# binary reports dev.
+VERSION        := $(patsubst v%,%,$(TAG))
 LDFLAGS        := -ldflags "-s -w -X main.version=$(VERSION) -X main.tag=$(TAG) -X main.commit=$(COMMIT) -X main.buildDate=$(BUILD_DATE)"
 RELEASE_DIR   := release
 
@@ -98,14 +99,14 @@ build-all: ## Build the application for all architectures
 		cpu=$${rest%%/*}; \
 		variant=$${rest#*/}; \
 		if [ "$$cpu" = "arm" ] && [ "$$variant" = "v7" ]; then \
-			echo "Building $(APP_NAME)-$(VERSION)-$$os-armv7..."; \
-			GOOS=$$os GOARCH=$$cpu GOARM=7 go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(VERSION)-$$os-armv7 $(APP_SRC); \
+			echo "Building $(APP_NAME)-$(or $(VERSION),dev)-$$os-armv7..."; \
+			GOOS=$$os GOARCH=$$cpu GOARM=7 go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(or $(VERSION),dev)-$$os-armv7 $(APP_SRC); \
 		elif [ "$$os" = "windows" ]; then \
-			echo "Building $(APP_NAME)-$(VERSION)-$$os-$$cpu.exe..."; \
-			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(VERSION)-$$os-$$cpu.exe $(APP_SRC); \
+			echo "Building $(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.exe..."; \
+			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.exe $(APP_SRC); \
 		else \
-			echo "Building $(APP_NAME)-$(VERSION)-$$os-$$cpu..."; \
-			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(VERSION)-$$os-$$cpu $(APP_SRC); \
+			echo "Building $(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu..."; \
+			GOOS=$$os GOARCH=$$cpu go build $(LDFLAGS) -o $(RELEASE_DIR)/$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu $(APP_SRC); \
 		fi \
 	done
 
@@ -117,11 +118,11 @@ release-all: build-all ## Package the build binaries into tar.gz archives for al
 		cpu=$${rest%%/*}; \
 		variant=$${rest#*/}; \
 		if [ "$$cpu" = "arm" ] && [ "$$variant" = "v7" ]; then \
-			bin=$(APP_NAME)-$(VERSION)-$$os-armv7; \
+			bin=$(APP_NAME)-$(or $(VERSION),dev)-$$os-armv7; \
 		elif [ "$$os" = "windows" ]; then \
-			bin=$(APP_NAME)-$(VERSION)-$$os-$$cpu.exe; \
+			bin=$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu.exe; \
 		else \
-			bin=$(APP_NAME)-$(VERSION)-$$os-$$cpu; \
+			bin=$(APP_NAME)-$(or $(VERSION),dev)-$$os-$$cpu; \
 		fi; \
 		if [ "$$os" = "windows" ]; then \
 			echo "Packaging $${bin%.exe}.zip..."; \

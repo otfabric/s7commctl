@@ -8,24 +8,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
-)
 
-var (
-	buildVersion = "dev"
-	buildTag     = ""
-	buildCommit  = "unknown"
-	buildDateStr = "unknown"
+	"github.com/otfabric/s7commctl/internal/buildinfo"
 )
 
 // SetBuildInfo sets version metadata (normally from main via -ldflags on main.version, main.tag, main.commit, main.buildDate).
 func SetBuildInfo(version, tag, commit, buildDate string) {
-	buildVersion = version
-	buildTag = tag
-	buildCommit = commit
-	buildDateStr = buildDate
+	buildinfo.Set(version, tag, commit, buildDate)
 }
 
 var rootCmd = &cobra.Command{
@@ -37,19 +30,28 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
+// versionJSON is the --json flag of version.
+var versionJSON bool
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-	Run: func(cmd *cobra.Command, args []string) {
-		if buildTag != "" {
-			fmt.Printf("s7commctl version %s (tag: %s, commit: %s, built: %s)\n", buildVersion, buildTag, buildCommit, buildDateStr)
-			return
+	Long: `Print the version of s7commctl on one line: version, tag, commit, build date, the OT
+Fabric libraries it is built with (go-s7comm), Go version and platform. --json, or
+S7COMMCTL_FORMAT=json, prints it as one JSON object.`,
+	Args: cobra.NoArgs,
+	Run: func(cmd *cobra.Command, _ []string) {
+		info := buildinfo.Get("s7commctl")
+		line := info.String()
+		if versionJSON || strings.EqualFold(strings.TrimSpace(os.Getenv("S7COMMCTL_FORMAT")), "json") {
+			line = info.JSON()
 		}
-		fmt.Printf("s7commctl version %s (commit: %s, built: %s)\n", buildVersion, buildCommit, buildDateStr)
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
 	},
 }
 
 func init() {
+	versionCmd.Flags().BoolVar(&versionJSON, "json", false, "Print the version as one JSON object")
 	rootCmd.AddCommand(versionCmd)
 }
 

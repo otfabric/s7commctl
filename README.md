@@ -23,7 +23,7 @@ Linux (amd64, arm64, armv7), macOS (Intel, Apple silicon) and Windows (amd64, ar
 
 ### Shell completion
 
-Enum flags (e.g. `--area`, `--format`, `--type`, `--confirm`, `--profile`) complete with their allowed values.
+Enum flags (e.g. `--area`, `--format`, `--type`, `--confirm`, `--profile`) complete with their allowed values, `pcap-decode --file` with `.pcap` files.
 
 ```bash
 # bash (needs the bash-completion package)
@@ -38,7 +38,10 @@ mkdir -p ~/.zsh/completions && s7commctl completion zsh > ~/.zsh/completions/_s7
 mkdir -p ~/.config/fish/completions && s7commctl completion fish > ~/.config/fish/completions/s7commctl.fish
 ```
 
-PowerShell completion is not available.
+```powershell
+# PowerShell: add this line to your profile ($PROFILE)
+s7commctl completion powershell | Out-String | Invoke-Expression
+```
 
 ## Table of contents
 
