@@ -569,7 +569,7 @@ func TestProfile_Text(t *testing.T) {
 	p := newFakePLC(t)
 	runCLI(t, p.args("profile")...).ok(t).
 		has(t, "Target: 127.0.0.1", "Port: "+p.port, "Setup support:         yes", "Recommended rack/slot: 0/0",
-			"Identify support:      yes", "Order:      6ES7 315-2EH14-0AB0", "Module:     CPU 315-2 PN/DP",
+			"Identify support:      yes", "Order:      6ES7 315-2EH14-0AB0", "Module:     PLC_1", "CPU type:   CPU 315-2 PN/DP",
 			"Block list support:    yes", "Block count: 2")
 }
 
@@ -601,8 +601,11 @@ func TestProfile_NoDevice(t *testing.T) {
 func TestProfile_IdentifyWithoutFieldsIsPartial(t *testing.T) {
 	p := newFakePLC(t)
 	p.szl = func(id, index uint16) fakeReply {
-		if id == 0x0011 || id == 0x001C {
-			return fakeReply{}
+		switch id { // lists that hold no records
+		case 0x0011:
+			return fakeReply{data: szlList(28)}
+		case 0x001C:
+			return fakeReply{data: szlList(34)}
 		}
 		return defaultSZL(id, index)
 	}

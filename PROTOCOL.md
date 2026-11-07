@@ -234,6 +234,8 @@ In `s7commctl`, SZL‑backed behavior appears mainly in:
 - parts of `fingerprint`
 - optional probe confirmation strategies
 
+`identify` reads SZL 0x0011 (module identification) and 0x001C (component identification) and takes each field from its record index, as STEP 7, TIA Portal and Snap7 read them; `diagnostic` reads SZL 0x0424 (mode), 0x0232 index 4 (protection level) and 0x00A0 (diagnostic buffer). A list longer than one PDU arrives in several packets, which go-s7comm collects. These requests and decodings are tested against recorded traffic of real S7-300 and S7-400 CPUs in go-s7comm (`testdata/captures`).
+
 Important caveats:
 
 - not all targets expose the same SZL fields
@@ -421,12 +423,12 @@ How the CLI maps to protocol concepts:
 
 - **`discover`** – finds reachable endpoints and optionally probes rack/slot candidates.
 - **`probe rackslot`** – tests rack/slot‑derived connection tuples and classifies behavior (TCP‑only, setup‑accepted, query‑confirmed, unstable/failed).
-- **`identify`** – uses SZL access to obtain metadata such as order number, module name, firmware, and CPU type.
+- **`identify`** – uses SZL access to obtain metadata such as order number, module name and type, serial number, firmware, system name and memory card.
 - **`read`** – performs variable reads against DB/I/Q/M/T/C areas.
 - **`write`** – performs variable writes with explicit safety controls.
 - **`scan read-ranges`** – finds readable, empty, partial, or failed spans in an area.
 - **`compare read`** – runs the same read over multiple candidate rack/slot tuples to see whether results differ.
-- **`list blocks`, `block info`, `block upload`** – use block‑oriented S7 services.
+- **`list blocks`, `block info`, `block upload`** – use block‑oriented S7 services: the user data block functions (list blocks of a type, block info) and the upload jobs (start upload, upload, end upload by the CPU's upload ID).
 - **`diagnostic`** – uses diagnostic‑oriented S7 services such as CPU state and diagnostic buffer.
 - **`fingerprint`** – summarizes communication characteristics (PDU size, TSAP behavior, possible CPU family heuristics).
 - **`sniff`, `pcap-decode`, `replay`** – support protocol inspection, offline analysis, and deterministic testing.

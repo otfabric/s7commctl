@@ -350,12 +350,18 @@ func TestFormatWriteAddress(t *testing.T) {
 
 func TestIdentify_Formats(t *testing.T) {
 	p := newFakePLC(t)
-	runCLI(t, p.args("identify")...).ok(t).has(t, "S7 Device Information", "6ES7 315-2EH14-0AB0", "CPU 315-2 PN/DP")
-	runCLI(t, p.args("identify", "--format", "text")...).ok(t).has(t, "Order: 6ES7 315-2EH14-0AB0, Module: CPU 315-2 PN/DP")
+	runCLI(t, p.args("identify")...).ok(t).has(t, "S7 Device Information", "6ES7 315-2EH14-0AB0", "CPU 315-2 PN/DP", "S C-B1U393142011", "MMC 4A1AC019")
+	runCLI(t, p.args("identify", "--format", "text")...).ok(t).has(t, "Order: 6ES7 315-2EH14-0AB0, Module: PLC_1, CPU: CPU 315-2 PN/DP, FW: V3.2.7")
 
 	m := runCLI(t, p.args("identify", "--format", "JSON")...).ok(t).jsonOut(t)
 	wantField(t, m, "6ES7 315-2EH14-0AB0", "result", "order_number")
-	wantField(t, m, "CPU 315-2 PN/DP", "result", "module_name")
+	wantField(t, m, "PLC_1", "result", "module_name")
+	wantField(t, m, "CPU 315-2 PN/DP", "result", "module_type")
+	wantField(t, m, "CPU 315-2 PN/DP", "result", "cpu_type")
+	wantField(t, m, "V3.2.7", "result", "fw_version")
+	wantField(t, m, "S7300/ET200M station_1", "result", "system_name")
+	wantField(t, m, "MMC 4A1AC019", "result", "memory_card_serial")
+	wantField(t, m, nil, "result", "plant_id")
 	wantField(t, m, "rack_slot", "request", "connection_mode")
 
 	r := runCLI(t, p.args("identify", "--quiet")...).ok(t)
@@ -368,7 +374,7 @@ func TestIdentify_QuietFallsBackToOrderNumber(t *testing.T) {
 	p := newFakePLC(t)
 	p.szl = func(id, _ uint16) fakeReply {
 		if id == wire.SZLComponentID {
-			return fakeReply{data: paddedSZL(34, "plant")}
+			return fakeReply{data: componentSZL(map[uint16]string{3: "plant"})}
 		}
 		return defaultSZL(id, 0)
 	}
@@ -387,7 +393,7 @@ func TestIdentifyAndFingerprint_SZLFailure(t *testing.T) {
 
 func TestDiagnostic_Formats(t *testing.T) {
 	p := newFakePLC(t)
-	runCLI(t, p.args("diagnostic")...).ok(t).has(t, "CPU State: RUN", "Protection: Read/Write Protected", "0x4A01", "0x02", "4")
+	runCLI(t, p.args("diagnostic")...).ok(t).has(t, "CPU State: RUN", "Protection: Read/Write Protected", "0x4A01", "0x04", "2")
 	runCLI(t, p.args("diagnostic", "--format", "text")...).ok(t).has(t, "2 entries")
 
 	m := runCLI(t, p.args("diagnostic", "--format", "json")...).ok(t).jsonOut(t)
@@ -434,7 +440,7 @@ func TestFingerprint_Formats(t *testing.T) {
 	p := newFakePLC(t)
 	p.szl = func(id, index uint16) fakeReply {
 		if id == wire.SZLComponentID {
-			return fakeReply{data: paddedSZL(34, "CPU S7-300")}
+			return fakeReply{data: componentSZL(map[uint16]string{7: "CPU S7-300"})}
 		}
 		return defaultSZL(id, index)
 	}
@@ -463,7 +469,7 @@ func TestFingerprint_ReflectsDeviceRestrictions(t *testing.T) {
 		case wire.SZLBlockList:
 			return fakeReply{ret: 0x05}
 		case wire.SZLProtectionInfo:
-			return fakeReply{data: []byte{0, 0, byte(model.ProtectionNone), 0}}
+			return fakeReply{data: protectionSZL(1)} // Siemens level 1: no protection
 		}
 		return defaultSZL(id, index)
 	}

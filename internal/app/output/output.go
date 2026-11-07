@@ -31,11 +31,16 @@ func DeviceInfoResultMap(info *model.DeviceInfo) map[string]any {
 		return nil
 	}
 	return map[string]any{
-		"order_number":  strOrNull(info.OrderNumber),
-		"serial_number": strOrNull(info.SerialNumber),
-		"module_name":   strOrNull(info.ModuleName),
-		"cpu_type":      strOrNull(info.CPUType),
-		"fw_version":    strOrNull(info.FWVersion),
+		"order_number":       strOrNull(info.OrderNumber),
+		"serial_number":      strOrNull(info.SerialNumber),
+		"module_name":        strOrNull(info.ModuleName),
+		"cpu_type":           strOrNull(info.CPUType),
+		"fw_version":         strOrNull(info.FWVersion),
+		"module_type":        strOrNull(info.ModuleType),
+		"system_name":        strOrNull(info.SystemName),
+		"plant_id":           strOrNull(info.PlantID),
+		"copyright":          strOrNull(info.Copyright),
+		"memory_card_serial": strOrNull(info.MemoryCardSerial),
 	}
 }
 
@@ -58,6 +63,11 @@ func FormatDeviceInfo(info *model.DeviceInfo, format string) string {
 		writeRowNA(&sb, "Module Name", info.ModuleName)
 		writeRowNA(&sb, "CPU Type", info.CPUType)
 		writeRowNA(&sb, "FW Version", info.FWVersion)
+		writeRowNA(&sb, "Module Type", info.ModuleType)
+		writeRowNA(&sb, "System Name", info.SystemName)
+		writeRowNA(&sb, "Plant ID", info.PlantID)
+		writeRowNA(&sb, "Copyright", info.Copyright)
+		writeRowNA(&sb, "Memory Card", info.MemoryCardSerial)
 		sb.WriteString("└─────────────────┴───────────────────────────────┘\n")
 		return sb.String()
 	default:

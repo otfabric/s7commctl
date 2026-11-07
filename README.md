@@ -87,7 +87,7 @@ Library code is consumed from the separate `otfabric/go-s7comm` module.
 - Go 1.26+
 - Network connectivity to S7 targets on TCP/102
 
-The library dependency `github.com/otfabric/go-s7comm` (currently v0.10.2) is a regular versioned module requirement in `go.mod`; no local `replace` or sibling checkout is needed.
+The library dependency `github.com/otfabric/go-s7comm` (currently v0.12.0) is a regular versioned module requirement in `go.mod`; no local `replace` or sibling checkout is needed.
 
 ## Build
 

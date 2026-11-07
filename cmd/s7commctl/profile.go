@@ -199,7 +199,7 @@ func profileHasIdentifyFields(info *model.DeviceInfo) bool {
 	if info == nil {
 		return false
 	}
-	for _, s := range []string{info.CPUType, info.OrderNumber, info.ModuleName, info.SerialNumber, info.FWVersion} {
+	for _, s := range []string{info.CPUType, info.OrderNumber, info.ModuleName, info.SerialNumber, info.FWVersion, info.ModuleType, info.SystemName} {
 		if s != "" && s != "N/A" {
 			return true
 		}
