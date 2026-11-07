@@ -9,8 +9,21 @@
 
 A professional Siemens S7 communication CLI for ISO-on-TCP (port 102), implemented in pure Go.
 
+## Install
+
+```bash
+curl -fsSL https://get.otfabric.io/s7commctl | sh
+```
+
+```powershell
+irm https://get.otfabric.io/s7commctl.ps1 | iex
+```
+
+Linux (amd64, arm64, armv7), macOS (Intel, Apple silicon) and Windows (amd64, arm64). The installer verifies the release's SHA-256 checksum, installs per user without `sudo` (`~/.local/bin`, Windows `%LOCALAPPDATA%\OTFabric\bin`), and upgrades in place when run again. Pin a version with `OTF_VERSION=x.y.z`; for CI, containers and device images use `OTF_UNMANAGED_INSTALL=<dir>`; all options: [otfabric/install](https://github.com/otfabric/install#options). For offline machines, the archives and checksums are on [Releases](https://github.com/otfabric/s7commctl/releases).
+
 ## Table of contents
 
+- [Install](#install)
 - [What it does](#what-it-does)
 - [Requirements implementation status](#requirements-implementation-status)
 - [Repository layout](#repository-layout)
