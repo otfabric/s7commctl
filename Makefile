@@ -31,7 +31,7 @@ fmt: ## Format Go code
 	@gofumpt -l -w . 2>/dev/null || true
 
 # docsync release of docs-check (DOC-008).
-DOCSYNC_VERSION := v0.3.0
+DOCSYNC_VERSION := v0.3.1
 
 # Per-package floor (TEST-012): the lowest package, cmd/s7commctl, measures 97.8 %.
 COVER_PKG_MIN := 95
