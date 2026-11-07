@@ -50,7 +50,8 @@ func TestVersionPrintsTheBuiltVersion(t *testing.T) {
 	if want = strings.TrimPrefix(want, "v"); want == "" {
 		want = "dev"
 	}
-	if !strings.HasPrefix(output, "s7commctl "+want+" (") || strings.Count(output, "\n") != 1 {
+	if !strings.HasPrefix(output, "s7commctl "+want+" (") || strings.Count(output, "\n") != 1 ||
+		!strings.Contains(output, ", go-s7comm ") {
 		t.Fatalf("output is not the line of s7commctl %s:\n%s", want, output)
 	}
 	output, code = run(t, "version", "--json")
