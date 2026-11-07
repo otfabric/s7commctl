@@ -151,7 +151,7 @@ func (p *fakePLC) serve(conn net.Conn) {
 		var resp []byte
 		switch {
 		case h.ROSCTR.IsUserdata():
-			resp = p.handleSZL(h.PDURef, data)
+			resp = p.handleUserdata(h.PDURef, param, data)
 		case len(param) == 0:
 			return
 		case param[0] == wire.FuncSetupComm:
@@ -171,7 +171,8 @@ func (p *fakePLC) serve(conn net.Conn) {
 				resp = ackData(h.PDURef, 0x81, 0x04, nil, nil)
 				break
 			}
-			resp = ackData(h.PDURef, 0, 0, []byte{wire.FuncUploadStart, 0, 0, 0, 0, 0, 0, 0, 1, '7'}, nil)
+			// As a CPU answers: status, 2 bytes, upload ID 7, block length in ASCII.
+			resp = ackData(h.PDURef, 0, 0, []byte{wire.FuncUploadStart, 0, 1, 0, 0, 0, 0, 7, 3, '2', '1', '6'}, nil)
 		case param[0] == wire.FuncUpload:
 			chunk := p.upload[uploadPos]
 			uploadPos++
@@ -179,8 +180,8 @@ func (p *fakePLC) serve(conn net.Conn) {
 			if uploadPos == len(p.upload) {
 				more = 0
 			}
-			body := make([]byte, 4, 4+len(chunk))
-			binary.BigEndian.PutUint16(body[2:4], uint16(len(chunk)*8))
+			body := []byte{0, 0, 0x00, 0xFB} // segment length in bytes, then two bytes a CPU sends
+			binary.BigEndian.PutUint16(body[0:2], uint16(len(chunk)))
 			resp = ackData(h.PDURef, 0, 0, []byte{wire.FuncUpload, more}, append(body, chunk...))
 		case param[0] == wire.FuncUploadEnd:
 			resp = ackData(h.PDURef, 0, 0, []byte{wire.FuncUploadEnd}, nil)
@@ -219,59 +220,128 @@ func (p *fakePLC) handleWrite(ref uint16, param, data []byte) []byte {
 	return ackData(ref, 0, 0, []byte{wire.FuncWriteVar, 1}, []byte{ret})
 }
 
-func (p *fakePLC) handleSZL(ref uint16, data []byte) []byte {
-	id := binary.BigEndian.Uint16(data[4:6])
-	index := binary.BigEndian.Uint16(data[6:8])
+// handleUserdata answers a user data request as an S7-300 does: SZL reads
+// (CPU functions) and block lists and block info (block functions). The
+// test hook p.szl answers all of them; block functions use SZLBlockList
+// (index: the block type) and SZLBlockInfo as keys.
+func (p *fakePLC) handleUserdata(ref uint16, param, data []byte) []byte {
+	group, sub := param[5]&0x0f, param[6]
+	var id, index uint16
+	switch {
+	case group == wire.UserdataGroupCPU && sub == wire.UserdataSZL && len(data) >= 8:
+		id, index = binary.BigEndian.Uint16(data[4:6]), binary.BigEndian.Uint16(data[6:8])
+	case group == wire.UserdataGroupBlock && sub == wire.UserdataBlockList && len(data) >= 6:
+		id, index = wire.SZLBlockList, uint16(data[5])
+	case group == wire.UserdataGroupBlock && sub == wire.UserdataBlockInfo && len(data) >= 12:
+		// data: ff 09 00 08 '0' <type> <five digits> 'A'; index is the block number
+		n, _ := strconv.Atoi(string(data[6:11]))
+		id, index = wire.SZLBlockInfo, uint16(n)
+	default:
+		return userdataAnswer(ref, group, sub, []byte{wire.RetCodeNotAvailable, 0, 0, 0})
+	}
 	reply := defaultSZL(id, index)
 	if p.szl != nil {
 		reply = p.szl(id, index)
 	}
-	ret := reply.ret
-	if ret == 0 {
-		ret = wire.RetCodeSuccess
+	if reply.ret != 0 && reply.ret != wire.RetCodeSuccess {
+		return userdataAnswer(ref, group, sub, []byte{reply.ret, 0, 0, 0})
 	}
-	body := make([]byte, 8, 8+len(reply.data))
-	body[0] = ret
-	body[1] = 0x09
-	binary.BigEndian.PutUint16(body[2:4], uint16(4+len(reply.data)))
-	binary.BigEndian.PutUint16(body[4:6], id)
-	binary.BigEndian.PutUint16(body[6:8], index)
-	return ackData(ref, 0, 0, []byte{0, 0}, append(body, reply.data...))
+	payload := reply.data
+	if group == wire.UserdataGroupCPU { // an SZL answer starts with its ID and index
+		payload = append(binary.BigEndian.AppendUint16(binary.BigEndian.AppendUint16(nil, id), index), payload...)
+	}
+	body := []byte{wire.RetCodeSuccess, 0x09, 0, 0}
+	binary.BigEndian.PutUint16(body[2:4], uint16(len(payload)))
+	return userdataAnswer(ref, group, sub, append(body, payload...))
 }
 
-// defaultSZL answers like an S7-300 in RUN at protection level 2 with DB1 and
-// DB2 loaded and two diagnostic entries.
+// userdataAnswer is a one-packet user data response.
+func userdataAnswer(ref uint16, group, sub byte, data []byte) []byte {
+	param := []byte{0x00, 0x01, 0x12, 0x08, 0x12, 0x80 | group, sub, 0x00, 0x00, 0x00, 0x00, 0x00}
+	h := make([]byte, 10, 10+len(param)+len(data))
+	h[0], h[1] = 0x32, byte(wire.ROSCTRUserdata)
+	binary.BigEndian.PutUint16(h[4:6], ref)
+	binary.BigEndian.PutUint16(h[6:8], uint16(len(param)))
+	binary.BigEndian.PutUint16(h[8:10], uint16(len(data)))
+	return append(append(h, param...), data...)
+}
+
+// szlList builds SZL list data: record length, record count, records
+// (each padded to the record length).
+func szlList(recLen int, recs ...[]byte) []byte {
+	out := binary.BigEndian.AppendUint16(binary.BigEndian.AppendUint16(nil, uint16(recLen)), uint16(len(recs)))
+	for _, r := range recs {
+		rec := make([]byte, recLen)
+		copy(rec, r)
+		out = append(out, rec...)
+	}
+	return out
+}
+
+// record is an SZL record: its 2-byte index, then text.
+func record(index uint16, text string) []byte {
+	return append(binary.BigEndian.AppendUint16(nil, index), text...)
+}
+
+// componentSZL is an SZL 0x001C list (34-byte records) from index -> text.
+func componentSZL(texts map[uint16]string) []byte {
+	var recs [][]byte
+	for _, i := range []uint16{1, 2, 3, 4, 5, 7, 8} {
+		if s, ok := texts[i]; ok {
+			recs = append(recs, record(i, s))
+		}
+	}
+	return szlList(34, recs...)
+}
+
+// protectionSZL is SZL 0x0232 index 4 with sch_rel = level (Siemens 1..3).
+func protectionSZL(level byte) []byte {
+	return szlList(40, []byte{0, 4, 0, 1, 0, 0, 0, level, 0, 2})
+}
+
+// defaultSZL answers like the CPU 315-2 PN/DP of go-s7comm's recorded
+// captures, in RUN at protection level 3 (read/write protected), with DB1
+// and DB2 loaded and two diagnostic entries.
 func defaultSZL(id, index uint16) fakeReply {
 	switch id {
 	case wire.SZLModuleID:
-		return fakeReply{data: paddedSZL(2+20, "6ES7 315-2EH14-0AB0")}
+		firmware := make([]byte, 28)
+		copy(firmware, []byte{0x00, 0x07})
+		copy(firmware[24:], []byte{'V', 3, 2, 7})
+		return fakeReply{data: szlList(28, record(1, "6ES7 315-2EH14-0AB0"), firmware)}
 	case wire.SZLComponentID:
-		return fakeReply{data: paddedSZL(2+24+8, "CPU 315-2 PN/DP")}
+		return fakeReply{data: componentSZL(map[uint16]string{
+			1: "S7300/ET200M station_1", 2: "PLC_1", 4: "Original Siemens Equipment",
+			5: "S C-B1U393142011", 7: "CPU 315-2 PN/DP", 8: "MMC 4A1AC019",
+		})}
 	case wire.SZLCPUState:
-		return fakeReply{data: []byte{0, 0, 0x08, 0}}
+		return fakeReply{data: szlList(20, []byte{0x51, 0x44, 0xFF, 0x08})}
 	case wire.SZLProtectionInfo:
-		return fakeReply{data: []byte{0, 0, 2, 0}}
+		return fakeReply{data: protectionSZL(3)}
 	case wire.SZLDiagBuffer:
-		entries := make([]byte, 40)
-		copy(entries[0:], []byte{0x4A, 0x01, 0x02, 0x03})
-		copy(entries[20:], []byte{0x4B, 0x02, 0x04, 0x05})
-		return fakeReply{data: entries}
+		return fakeReply{data: szlList(20, []byte{0x4A, 0x01, 0x02, 0x03}, []byte{0x4B, 0x02, 0x04, 0x05})}
 	case wire.SZLBlockList:
-		if index == 0x0002 {
-			return fakeReply{data: []byte{0, 1, wire.BlockTypeDB, 0x12, 0, 2, wire.BlockTypeDB, 0x13}}
+		if index == wire.BlockTypeDB {
+			return fakeReply{data: []byte{0, 1, 0x22, 0x05, 0, 2, 0x22, 0x05}}
 		}
 		return fakeReply{}
 	case wire.SZLBlockInfo:
-		return fakeReply{data: []byte{0, 100, 0, 20, 0, 80}}
+		return fakeReply{data: blockInfo(int(index), 100, 20, 80)}
 	}
 	return fakeReply{ret: 0x0A}
 }
 
-// paddedSZL returns a size-byte SZL payload with text after the two index bytes.
-func paddedSZL(size int, text string) []byte {
-	b := make([]byte, size)
-	copy(b[2:], text)
-	return b
+// blockInfo is a block info record as an S7-300 answers it.
+func blockInfo(number, loadMem, localData, mc7 int) []byte {
+	r := make([]byte, 78)
+	copy(r, []byte{0x01, 0x00, 0x00, 0x4a, 0x22, 0x00, 'p', 'p', 0x01, 0x01, 0x05, 0x0a})
+	binary.BigEndian.PutUint16(r[12:14], uint16(number))
+	binary.BigEndian.PutUint32(r[14:18], uint32(loadMem))
+	binary.BigEndian.PutUint16(r[38:40], uint16(localData))
+	binary.BigEndian.PutUint16(r[40:42], uint16(mc7))
+	copy(r[42:], "SIMATIC")
+	r[66] = 0x10
+	return r
 }
 
 // patternBytes is the default memory: every byte holds its own address.

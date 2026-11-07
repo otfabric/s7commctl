@@ -55,7 +55,7 @@ Other failures print a message on stderr and nothing on stdout. Exception: once 
 
 ### `identify`
 
-`result`: `order_number`, `serial_number`, `module_name`, `cpu_type`, `fw_version`. Each is a string, or null when the PLC did not report it.
+`result`: `order_number`, `serial_number`, `module_name`, `cpu_type`, `fw_version`, `module_type`, `system_name`, `plant_id`, `copyright`, `memory_card_serial`. Each is a string, or null when the PLC did not report it. They come from SZL 0x0011 (order number; firmware `Vx.y.z` from index 7) and SZL 0x001C by index: 1 `system_name`, 2 `module_name`, 3 `plant_id`, 4 `copyright`, 5 `serial_number`, 7 `module_type` (and `cpu_type` when it names a CPU), 8 `memory_card_serial`.
 
 ### `fingerprint`
 
@@ -63,7 +63,7 @@ Other failures print a message on stderr and nothing on stdout. Exception: once 
 
 ### `diagnostic`
 
-`result`: `cpu_state`, `protection_level` (strings), `diagnostic` with `total_count` and `entries`. An entry has `timestamp` and `description` (string or null), and `event_id`, `event_class`, `priority`, `info1`, `info2` (numbers).
+`result`: `cpu_state`, `protection_level` (strings), `diagnostic` with `total_count` and `entries`. An entry has `timestamp` and `description` (string or null), and `event_id`, `event_class` (the high nibble of the event ID, e.g. 4 for mode transitions), `priority` (priority class), `info1`, `info2` (numbers). `timestamp` is the entry's BCD time stamp as hex digits.
 
 ### `list blocks`, `blocks`
 

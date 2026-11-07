@@ -468,3 +468,21 @@ func TestFormatReadData_Formats(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDeviceInfoAllFields(t *testing.T) {
+	info := &model.DeviceInfo{OrderNumber: "6ES7 315-2EH14-0AB0", ModuleName: "PLC_1", ModuleType: "CPU 315-2 PN/DP",
+		SystemName: "S7300/ET200M station_1", PlantID: "plant", Copyright: "Original Siemens Equipment", MemoryCardSerial: "MMC 4A1AC019"}
+	m := DeviceInfoResultMap(info)
+	for k, want := range map[string]any{"module_type": "CPU 315-2 PN/DP", "system_name": "S7300/ET200M station_1", "plant_id": "plant",
+		"copyright": "Original Siemens Equipment", "memory_card_serial": "MMC 4A1AC019", "serial_number": nil} {
+		if m[k] != want {
+			t.Errorf("%s = %v, want %v", k, m[k], want)
+		}
+	}
+	table := FormatDeviceInfo(info, FormatTable)
+	for _, s := range []string{"Module Type", "CPU 315-2 PN/DP", "System Name", "Plant ID", "Copyright", "Memory Card", "MMC 4A1AC019"} {
+		if !strings.Contains(table, s) {
+			t.Errorf("table lacks %q:\n%s", s, table)
+		}
+	}
+}

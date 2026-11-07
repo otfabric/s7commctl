@@ -1,5 +1,35 @@
 # s7commctl Releases
 
+## v0.5.0
+
+**Date:** 2026-11-07
+**Previous release:** v0.4.1
+
+### Summary
+
+Built on go-s7comm v0.12.0 (from v0.10.2). go-s7comm v0.11.0 fixed requests that real CPUs could not answer: until now `identify`, `fingerprint`, `diagnostic`, `profile`, `list blocks`, `blocks`, `block info` and `block upload` sent malformed or wrong user data and upload requests to a real S7-300/S7-400, and decoded SZL answers at wrong offsets. go-s7comm now sends, byte for byte, the requests of Snap7 and TIA Portal V13, and decodes the recorded answers of a CPU 315-2 PN/DP and an IM151-8 PN/DP CPU correctly ([go-s7comm testdata/captures](https://github.com/otfabric/go-s7comm/blob/main/testdata/captures/README.md)). No flag or exit code changes.
+
+### Fixed (through go-s7comm)
+
+- `identify`, `fingerprint`, `profile`: the SZL request lacked its method byte; fields are now read from SZL 0x0011/0x001C by record index. `module_name` is the module's name (e.g. `PLC_1`), `cpu_type` its module type (e.g. `CPU 315-2 PN/DP`), `fw_version` `Vx.y.z`.
+- `diagnostic`: CPU state from the SZL 0x0424 mode, protection level from SZL 0x0232 index 4 (Siemens level 1 none, 2 write protected, 3 read/write protected), diagnostic entries from the 20-byte records: `event_class` is the event ID's high nibble, `priority` the priority class, `timestamp` the BCD time stamp.
+- `list blocks`, `blocks`, `block info`: block functions instead of SZL 0x0111/0x0113; long lists are collected over several packets; block info carries the block number the CPU reports.
+- `block upload`: the CPU's file name and 4-byte upload ID; segment lengths in bytes.
+
+### Added
+
+- `identify`: `module_type`, `system_name`, `plant_id`, `copyright` and `memory_card_serial` in JSON (string or null) and in the table. The one-line `text` format is unchanged.
+
+### Changed
+
+- Output values of `identify`, `diagnostic` and the block commands against a real CPU change, as they are now decoded correctly (see Fixed). Scripts that matched the earlier, wrongly decoded values need updating.
+
+### Tests
+
+- The test PLC answers in the format real CPUs use (user data responses, SZL records, block functions, upload IDs), taken from go-s7comm's recorded captures.
+
+---
+
 ## v0.4.1
 
 **Date:** 2026-11-07
