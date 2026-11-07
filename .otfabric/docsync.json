@@ -1,0 +1,8 @@
+{
+  "clis": [
+    {
+      "name": "s7commctl",
+      "manifest": "./cmd/s7commctl"
+    }
+  ]
+}
