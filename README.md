@@ -21,9 +21,29 @@ irm https://get.otfabric.io/s7commctl.ps1 | iex
 
 Linux (amd64, arm64, armv7), macOS (Intel, Apple silicon) and Windows (amd64, arm64). The installer verifies the release's SHA-256 checksum, installs per user without `sudo` (`~/.local/bin`, Windows `%LOCALAPPDATA%\OTFabric\bin`), and upgrades in place when run again. Pin a version with `OTF_VERSION=x.y.z`; for CI, containers and device images use `OTF_UNMANAGED_INSTALL=<dir>`; all options: [otfabric/install](https://github.com/otfabric/install#options). For offline machines, the archives and checksums are on [Releases](https://github.com/otfabric/s7commctl/releases).
 
+### Shell completion
+
+Enum flags (e.g. `--area`, `--format`, `--type`, `--confirm`, `--profile`) complete with their allowed values.
+
+```bash
+# bash (needs the bash-completion package)
+mkdir -p ~/.local/share/bash-completion/completions
+s7commctl completion bash > ~/.local/share/bash-completion/completions/s7commctl
+
+# zsh: a directory on your fpath, then restart the shell
+mkdir -p ~/.zsh/completions && s7commctl completion zsh > ~/.zsh/completions/_s7commctl
+# and once in ~/.zshrc:  fpath=(~/.zsh/completions $fpath); autoload -U compinit && compinit
+
+# fish
+mkdir -p ~/.config/fish/completions && s7commctl completion fish > ~/.config/fish/completions/s7commctl.fish
+```
+
+PowerShell completion is not available.
+
 ## Table of contents
 
 - [Install](#install)
+  - [Shell completion](#shell-completion)
 - [What it does](#what-it-does)
 - [Requirements implementation status](#requirements-implementation-status)
 - [Repository layout](#repository-layout)
@@ -32,7 +52,6 @@ Linux (amd64, arm64, armv7), macOS (Intel, Apple silicon) and Windows (amd64, ar
 - [Quality targets](#quality-targets)
 - [Usage](#usage)
   - [Command tree](#command-tree)
-  - [Shell completion](#shell-completion)
   - [Exit codes](#exit-codes)
 - [Common examples](#common-examples)
 - [Configuration via environment variables](#configuration-via-environment-variables)
@@ -179,23 +198,6 @@ s7commctl
 ├── completion
 └── version
 ```
-
-### Shell completion
-
-Generate tab-completion for bash, zsh, or fish. Enum flags (e.g. `--area`, `--format`, `--type`, `--confirm`, `--profile`) complete with their allowed values.
-
-```bash
-# Bash
-source <(s7commctl completion bash)
-
-# Zsh
-source <(s7commctl completion zsh)
-
-# Fish
-s7commctl completion fish | source
-```
-
-To install permanently (e.g. Bash): `s7commctl completion bash > /etc/bash_completion.d/s7commctl` (or `~/.local/share/bash-completion/completions/s7commctl`).
 
 ### Exit codes
 
