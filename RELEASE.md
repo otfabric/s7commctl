@@ -1,5 +1,21 @@
 # s7commctl Releases
 
+## v0.4.1
+
+**Date:** 2026-11-07
+**Previous release:** v0.4.0
+
+### Summary
+
+Built on go-s7comm v0.10.2 (from v0.9.0). No command, flag, output or exit code changes.
+
+### Changed
+
+- go-s7comm v0.9.0 → v0.10.2. The client now follows the Siemens length units for Read Var answers with data transport size DINTEGER, REAL or OCTET STRING (bytes, not bits) and treats an answer with a transport size that is not a data transport size as a protocol error. s7commctl's reads use BYTE and BIT only, so its results do not change. go-s7comm also gained an in-memory test server (package `server`), which s7commctl does not use.
+- README: the go-s7comm version it names was out of date (v0.7.5).
+
+---
+
 ## v0.4.0
 
 **Date:** 2026-11-03
