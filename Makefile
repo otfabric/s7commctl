@@ -1,4 +1,4 @@
-.PHONY: help all run fmt lint lint-ci vet test check quality tidy build build-nocheck build-all release-all install clean coverage coverage-pkg-check cover vuln e2e
+.PHONY: help all run fmt lint lint-ci vet test check quality tidy build build-nocheck build-all release-all install clean coverage coverage-pkg-check cover vuln e2e docs-check
 
 help: ## This help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -29,6 +29,9 @@ fmt: ## Format Go code
 	@echo "Formatting code"
 	@gofmt -w .
 	@gofumpt -l -w . 2>/dev/null || true
+
+# docsync release of docs-check (DOC-008).
+DOCSYNC_VERSION := v0.2.0
 
 # Per-package floor (TEST-012): the lowest package, cmd/s7commctl, measures 97.8 %.
 COVER_PKG_MIN := 95
@@ -69,7 +72,7 @@ test: ## Run all tests on project packages
 	@go clean -testcache
 	@go test -count=1 -race ./...
 
-check: fmt lint lint-ci vet vuln test coverage-pkg-check ## Run all checks (format, lint, vet, vulnerability scan, test, per-package coverage)
+check: fmt lint lint-ci vet vuln test coverage-pkg-check docs-check ## Run all checks (format, lint, vet, vulnerability scan, test, per-package coverage, docs)
 
 quality: check ## Alias for full quality gate
 
@@ -136,6 +139,10 @@ e2e: ## Build the binary and run the e2e suite against it
 	@mkdir -p bin
 	@go build $(LDFLAGS) -o bin/s7commctl $(APP_SRC)
 	@S7COMMCTL_E2E_BIN=$(CURDIR)/bin/s7commctl S7COMMCTL_E2E_VERSION=$(VERSION) go test -count=1 -tags=e2e ./e2e/...
+
+# The documents against the code (DOC-008): docsync, as docs-check.yml runs it.
+docs-check: ## Check that the documents agree with the code (docsync)
+	@go run github.com/otfabric/docsync@$(DOCSYNC_VERSION) check .
 
 install: build ## Install the built binary to /usr/local/bin
 	@echo "Installing $(APP_NAME) to /usr/local/bin"
