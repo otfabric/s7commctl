@@ -11,7 +11,10 @@ export GOWORK := off
 APP_NAME       = s7commctl
 APP_SRC        = main.go
 ARCHS          = linux/amd64 linux/arm64 linux/arm/v7 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
-COMMIT         := $(shell git rev-parse HEAD 2>/dev/null)
+# -dirty when the working tree has changes, as Go itself marks vcs.modified
+# (git status --porcelain, untracked files included); empty outside git.
+DIRTY := $(shell [ -z "$$(git status --porcelain 2>/dev/null)" ] || echo -dirty)
+COMMIT         := $(shell git rev-parse HEAD 2>/dev/null)$(DIRTY)
 BUILD_DATE     := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 TAG            := $(shell git describe --tags --exact-match 2>/dev/null || echo "")
 # VERSION and TAG only when HEAD is exactly on a tag (leading v stripped); otherwise the
