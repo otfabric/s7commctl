@@ -1,6 +1,6 @@
 module github.com/otfabric/s7commctl
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/otfabric/go-s7comm v0.12.0
@@ -10,6 +10,6 @@ require (
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/otfabric/go-cotp v1.2.0 // indirect
+	github.com/otfabric/go-cotp v1.3.0 // indirect
 	github.com/otfabric/go-tpkt v1.1.0 // indirect
 )
