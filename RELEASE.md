@@ -1,5 +1,21 @@
 # s7commctl Releases
 
+## v0.6.1
+
+**Date:** 2026-11-08
+**Previous release:** v0.6.0
+
+### Summary
+
+Built on go-cotp v1.3.0, and release binaries are built with the latest Go 1.26 patch release.
+
+### Changed
+
+- Built on go-cotp v1.3.0 (was v1.2.0; an indirect dependency through go-s7comm). The COTP client no longer fails the handshake when the connection confirm's responding transport selector (0xC2) differs from the configured remote selector; X.224 §13.3.4 allows it to differ, and it is kept as the negotiated remote selector. go-cotp also adds the server option `ServerConfig.EchoSelectors`, off by default. `version` lists `go-cotp 1.3.0`.
+- `go.mod` declares `go 1.26.0` (was `go 1.26`), as the other OT Fabric repositories do; the minimum Go version is unchanged. Release binaries are built with the latest Go 1.26 patch release (otfabric/.github release workflow v3.6.0); with this `go` line the earlier workflow would have built with exactly go1.26.0.
+
+---
+
 ## v0.6.0
 
 **Date:** 2026-11-07
