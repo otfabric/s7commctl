@@ -61,7 +61,12 @@ func runCompareRead(cmd *cobra.Command, args []string) error {
 		return ExitUsage(fmt.Errorf("size must be > 0"))
 	}
 
+	dial, err := compareReadConfig.Dialer()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	req := client.CompareReadRequest{
+		Dialer:     dial,
 		Address:    compareReadConfig.IP,
 		Port:       compareReadConfig.Port,
 		Candidates: candidates,

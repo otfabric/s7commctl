@@ -36,7 +36,7 @@ func recordDiscover(t *testing.T) *config.DiscoverConfig {
 	t.Helper()
 	got := new(config.DiscoverConfig)
 	old := discoverHosts
-	discoverHosts = func(_ context.Context, cfg config.DiscoverConfig) ([]client.DiscoverResult, error) {
+	discoverHosts = func(_ context.Context, cfg config.DiscoverConfig, _ client.Dialer) ([]client.DiscoverResult, error) {
 		*got = cfg
 		return []client.DiscoverResult{{IP: "10.0.0.9", IsS7: true}, {IP: "10.0.0.10"}}, nil
 	}

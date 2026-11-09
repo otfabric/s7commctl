@@ -292,6 +292,8 @@ Run the same read on multiple rack/slot pairs and see if results are identical (
 s7commctl compare read --ip 192.168.1.10 --area DB --db 1 --offset 0 --size 32 --candidates 0/0,0/1,0/2
 ```
 
+`--timeout` bounds each candidate's connect and, separately, its read, so a PLC that goes silent after setup times out instead of blocking.
+
 Table output includes a **SameAsBaseline** column (baseline/yes/no). Use `--repeat` and `--interval-ms` for multiple runs when data may change (e.g. Q area).
 
 ### 5. Profile (capabilities summary)
@@ -420,6 +422,24 @@ Run a deterministic replay endpoint with scripted response frames (hex TPKT, one
 s7commctl replay --listen :1102 --script replay.hex --format jsonl
 ```
 
+## Reaching the PLC: proxy and source address
+
+Every command that connects to a PLC (`identify`, `read`, `write`, `list`, `block`, `blocks`, `diagnostic`, `fingerprint`, `scan`, `record`, `probe rackslot`, `compare read`, `profile` and `discover`) accepts two flags for how the TCP connection is opened:
+
+- `--proxy socks5://host:port` connects through a SOCKS5 proxy (RFC 1928, no authentication), for example an SSH jump host into the plant network (`ssh -D 1080 jumphost`). `socks5h://` sends host names to the proxy to resolve. Proxy credentials are not supported.
+- `--source-addr <ip>` connects from that local address, on a host with several networks (an OT and an office interface, say).
+
+With both, the connection to the proxy is made from the source address.
+
+```bash
+ssh -N -D 1080 engineer@jumphost &
+s7commctl identify --ip 10.20.0.15 --proxy socks5://127.0.0.1:1080
+s7commctl discover --cidr 10.20.0.0/24 --proxy socks5://127.0.0.1:1080
+s7commctl read --ip 192.168.0.10 --source-addr 192.168.0.2 --area DB --db 1 --size 4
+```
+
+An invalid value is a usage error (exit 2). A proxy that refuses the connection is a connection failure; the error names the proxy and its reply, for example `socks5: connection not allowed by ruleset`.
+
 ## Configuration via environment variables
 
 Most command flags support `S7COMMCTL_*` environment variables, for example:
@@ -433,6 +453,8 @@ Most command flags support `S7COMMCTL_*` environment variables, for example:
 - S7COMMCTL_BRUTE_RACK_SLOT (`--brute-rack-slot`)
 - S7COMMCTL_LOCAL_TSAP (`--local-tsap`)
 - S7COMMCTL_REMOTE_TSAP (`--remote-tsap`)
+- S7COMMCTL_PROXY (`--proxy`)
+- S7COMMCTL_SOURCE_ADDR (`--source-addr`)
 
 Example:
 

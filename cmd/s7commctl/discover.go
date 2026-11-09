@@ -22,7 +22,7 @@ var discoverConfig = config.DefaultDiscoverConfig()
 
 // discoverHosts runs the scan. client.Discover always dials port 102, which a
 // test cannot bind, so the tests replace it to see the options that reach it.
-var discoverHosts = func(ctx context.Context, cfg config.DiscoverConfig) ([]client.DiscoverResult, error) {
+var discoverHosts = func(ctx context.Context, cfg config.DiscoverConfig, dial client.Dialer) ([]client.DiscoverResult, error) {
 	return client.Discover(
 		ctx,
 		cfg.CIDR,
@@ -30,6 +30,7 @@ var discoverHosts = func(ctx context.Context, cfg config.DiscoverConfig) ([]clie
 		client.WithDiscoverParallel(cfg.Parallel),
 		client.WithDiscoverRackSlotRange(cfg.RackMin, cfg.RackMax, cfg.SlotMin, cfg.SlotMax),
 		client.WithDiscoverRateLimit(cfg.RateMS),
+		client.WithDiscoverDialer(dial),
 	)
 }
 
@@ -55,7 +56,11 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 		return ExitUsage(err)
 	}
 
-	results, err := discoverHosts(cmd.Context(), cfg)
+	dial, err := cfg.Dialer()
+	if err != nil {
+		return ExitUsage(err)
+	}
+	results, err := discoverHosts(cmd.Context(), cfg, dial)
 	if err != nil {
 		return ExitRuntime(err)
 	}

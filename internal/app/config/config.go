@@ -12,12 +12,27 @@ import (
 	"time"
 
 	"github.com/otfabric/go-s7comm/client"
+	"github.com/otfabric/s7commctl/internal/app/netdial"
 
 	"github.com/spf13/cobra"
 )
 
+// DialConfig selects how TCP connections to the PLC are opened. Every
+// command that connects embeds it.
+type DialConfig struct {
+	SourceAddr string `flag:"source-addr" env:"S7COMMCTL_SOURCE_ADDR" desc:"Local IP address to connect from (multi-homed hosts)"`
+	Proxy      string `flag:"proxy" env:"S7COMMCTL_PROXY" desc:"Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy)"`
+}
+
+// Dialer returns the client.Dialer of the flags, or nil when neither is set
+// (the library's default dialer). An error means a flag is invalid.
+func (d DialConfig) Dialer() (client.Dialer, error) {
+	return netdial.New(d.SourceAddr, d.Proxy)
+}
+
 // DeviceConfig contains common connection parameters
 type DeviceConfig struct {
+	DialConfig
 	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"S7 device IP address"`
 	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"S7 port (default 102)"`
 	Rack              int    `flag:"rack" env:"S7COMMCTL_RACK" desc:"PLC rack number"`
@@ -67,6 +82,13 @@ func (c DeviceConfig) ToClientOptions() ([]client.Option, error) {
 	if c.RateLimitMS > 0 {
 		opts = append(opts, client.WithRateLimit(time.Duration(c.RateLimitMS)*time.Millisecond))
 	}
+	d, err := c.Dialer()
+	if err != nil {
+		return nil, err
+	}
+	if d != nil {
+		opts = append(opts, client.WithDialer(d))
+	}
 	return opts, nil
 }
 
@@ -104,6 +126,7 @@ func DefaultDeviceConfig() DeviceConfig {
 
 // DiscoverConfig for the discover command
 type DiscoverConfig struct {
+	DialConfig
 	CIDR     string `flag:"cidr" env:"S7COMMCTL_CIDR" desc:"CIDR range to scan"`
 	Timeout  int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout per host in ms"`
 	Parallel int    `flag:"parallel" env:"S7COMMCTL_PARALLEL" desc:"Number of parallel probes"`
@@ -198,6 +221,7 @@ func DefaultFingerprintConfig() FingerprintConfig {
 
 // ProbeRackSlotConfig for probe rackslot command
 type ProbeRackSlotConfig struct {
+	DialConfig
 	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
 	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
 	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
@@ -264,6 +288,11 @@ func (c ProbeRackSlotConfig) ToProbeRequest() (client.RackSlotProbeRequest, erro
 	req.Retries = max(c.Retries, 0)
 	req.RetryDelay = time.Duration(c.RetryDelayMS) * time.Millisecond
 	req.StopOnFirstConfirmed = c.FirstConfirmed
+	d, err := c.Dialer()
+	if err != nil {
+		return req, err
+	}
+	req.Dialer = d
 	if c.LocalTSAP != "" || c.RemoteTSAP != "" {
 		if (c.LocalTSAP == "") != (c.RemoteTSAP == "") {
 			return req, fmt.Errorf("both --local-tsap and --remote-tsap must be set together")
@@ -314,6 +343,7 @@ func DefaultScanReadRangesConfig() ScanReadRangesConfig {
 
 // CompareReadConfig for compare read command
 type CompareReadConfig struct {
+	DialConfig
 	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP"`
 	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
 	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"Port (default 102)"`
@@ -334,6 +364,7 @@ func DefaultCompareReadConfig() CompareReadConfig {
 
 // ProfileConfig for profile/capabilities command
 type ProfileConfig struct {
+	DialConfig
 	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
 	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
 	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds"`
