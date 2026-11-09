@@ -19,6 +19,7 @@ Include a clear description, steps to reproduce, and the impact. We will acknowl
 ## Security-related considerations
 
 - **Network and PLC access**: s7commctl connects to Siemens S7 devices over TCP (port 102). Use it only on networks and targets you are authorized to access. The CLI warns when the target IP appears publicly routable (`--no-exposure-warning` suppresses this in authorized environments).
+- **Proxies**: `--proxy` sends the connection, and the PLC traffic in clear text, through the SOCKS5 proxy you name; use only a proxy you control, such as an SSH jump host. The exposure warning checks the PLC's address, not the proxy's.
 - **Writes**: The `write` command can modify PLC memory and requires explicit `--dangerous` (and optionally `--force`). Use with care in production.
 - **Credentials**: The tool does not store passwords; S7 over ISO-on-TCP (port 102) typically relies on network segmentation and PLC protection levels rather than application-level authentication. Ensure targets are not exposed to untrusted networks.
 

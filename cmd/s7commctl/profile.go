@@ -40,6 +40,10 @@ func runProfile(cmd *cobra.Command, args []string) error {
 	}
 	warnIfPublicTarget(profileConfig.IP, false, "verify authorization and network exposure", profileConfig.NoExposureWarning)
 
+	dial, err := profileConfig.Dialer()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	ctx := cmd.Context()
 	timeout := time.Duration(profileConfig.Timeout) * time.Millisecond
 	if timeout <= 0 {
@@ -58,6 +62,7 @@ func runProfile(cmd *cobra.Command, args []string) error {
 	probeReq.SlotMin, probeReq.SlotMax = 0, 5
 	probeReq.Timeout = timeout
 	probeReq.Parallelism = 4
+	probeReq.Dialer = dial
 
 	probeRes, err := client.ProbeRackSlots(ctx, probeReq)
 	if err != nil {
@@ -86,6 +91,9 @@ func runProfile(cmd *cobra.Command, args []string) error {
 		}
 		if profileConfig.Port > 0 {
 			opts = append(opts, client.WithPort(profileConfig.Port))
+		}
+		if dial != nil {
+			opts = append(opts, client.WithDialer(dial))
 		}
 		c := client.New(profileConfig.IP, opts...)
 		if err := c.Connect(ctx); err == nil {
