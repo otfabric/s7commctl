@@ -292,6 +292,8 @@ Run the same read on multiple rack/slot pairs and see if results are identical (
 s7commctl compare read --ip 192.168.1.10 --area DB --db 1 --offset 0 --size 32 --candidates 0/0,0/1,0/2
 ```
 
+`--timeout` bounds each candidate's connect and, separately, its read, so a PLC that goes silent after setup times out instead of blocking.
+
 Table output includes a **SameAsBaseline** column (baseline/yes/no). Use `--repeat` and `--interval-ms` for multiple runs when data may change (e.g. Q area).
 
 ### 5. Profile (capabilities summary)

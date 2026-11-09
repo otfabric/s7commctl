@@ -3,11 +3,11 @@
 ## v0.7.0
 
 **Date:** 2026-11-09
-**Previous release:** v0.6.2
+**Previous release:** v0.6.1
 
 ### Summary
 
-Two flags on every command that connects to a PLC set how the connection is opened: `--proxy` reaches a plant network through a SOCKS5 proxy such as an SSH jump host, and `--source-addr` picks the local interface. Built on go-s7comm v0.14.0, whose scan helpers take a dialer too, so the flags also cover `discover`, `probe rackslot`, `compare read` and `profile`.
+Two flags on every command that connects to a PLC set how the connection is opened: `--proxy` reaches a plant network through a SOCKS5 proxy such as an SSH jump host, and `--source-addr` picks the local interface. Built on go-s7comm v0.15.0, whose scan helpers take a dialer too, so the flags also cover `discover`, `probe rackslot`, `compare read` and `profile`.
 
 ### Added
 
@@ -15,13 +15,17 @@ Two flags on every command that connects to a PLC set how the connection is open
 - `--source-addr <ip>` (`S7COMMCTL_SOURCE_ADDR`): connect from that local IP address; with `--proxy`, the connection to the proxy.
 - Both on `identify`, `read`, `write`, `list`, `block`, `blocks`, `diagnostic`, `fingerprint`, `scan`, `record`, `probe rackslot`, `compare read`, `profile` and `discover`.
 
+### Breaking changes
+
+- `compare read`: `--timeout` now bounds each candidate's read as well as its connect (go-s7comm v0.15.0). A PLC that accepted setup and then went silent used to block the command indefinitely; it now times out. A PLC that answers more slowly than `--timeout` now times out too: raise `--timeout` for it.
+
 ### Changed
 
-- go-s7comm v0.14.0 (was v0.12.0): `client.WithDialer` and the dialer of the scan helpers.
+- go-s7comm v0.15.0 (was v0.12.0): `client.WithDialer` and the dialer of the scan helpers.
 
 ### Tests
 
-- `internal/app/netdial`: flag validation, source address binding, SOCKS5 CONNECT for IPv4, IPv6 and host names (`socks5` and `socks5h`), every reply and handshake failure, a silent proxy against the deadline, cancel.
+- `internal/app/netdial`: flag validation, source address binding, SOCKS5 CONNECT for IPv4, IPv6 and host names (`socks5` and `socks5h`), every reply and handshake failure, a silent proxy against the deadline, cancel. A context that ends as the handshake finishes fails the dial on one path instead of a timing-dependent branch.
 - `cmd/s7commctl`: each connecting command through a test proxy to the fake PLC, `discover` over a whole range with the real `client.Discover` (the proxy forwards every CONNECT to the fake PLC), a refusing proxy, `--source-addr`, and invalid values as usage errors on every command.
 
 ---

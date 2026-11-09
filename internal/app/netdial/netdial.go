@@ -117,7 +117,10 @@ func (p *socks5) dial(ctx context.Context, network, addr string) (net.Conn, erro
 	// set and the error matches context.DeadlineExceeded / Canceled.
 	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Unix(1, 0)) })
 	err = handshake(conn, req)
-	if !stop() && err == nil {
+	stop()
+	if err == nil {
+		// A ctx that ended as the handshake finished may have set the past
+		// deadline already: fail rather than return a poisoned connection.
 		err = ctx.Err()
 	}
 	if err != nil {
