@@ -26,6 +26,7 @@ Two flags on every command that connects to a PLC set how the connection is open
 ### Tests
 
 - `internal/app/netdial`: flag validation, source address binding, SOCKS5 CONNECT for IPv4, IPv6 and host names (`socks5` and `socks5h`), every reply and handshake failure, a silent proxy against the deadline, cancel. A context that ends as the handshake finishes fails the dial on one path instead of a timing-dependent branch.
+- `internal/socks5test`: the test proxy's listen failure; it is at 100 % coverage, as is `internal/app/netdial`.
 - `cmd/s7commctl`: each connecting command through a test proxy to the fake PLC, `discover` over a whole range with the real `client.Discover` (the proxy forwards every CONNECT to the fake PLC), a refusing proxy, `--source-addr`, and invalid values as usage errors on every command.
 
 ---

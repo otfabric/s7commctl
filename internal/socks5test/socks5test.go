@@ -46,13 +46,17 @@ type Server struct {
 	reqs []Request
 }
 
+// listen is net.Listen; a test replaces it to make Start fail.
+var listen = net.Listen
+
 // Start listens on loopback and serves until the test ends. Set the
 // scripting fields of the returned Server before the first connection.
 func Start(t testing.TB) *Server {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
+		return nil // only reached with a testing.TB whose Fatalf returns
 	}
 	s := &Server{Addr: ln.Addr().String(), ln: ln}
 	s.wg.Go(s.accept)
@@ -165,9 +169,8 @@ func (s *Server) serve(c net.Conn) {
 		reply = append(reply, s.BoundType)
 	}
 	reply = append(reply, 0, 0)
-	if _, err := c.Write(reply); err != nil {
-		return
-	}
+	// A failed write leaves c broken, so the copies below end at once.
+	_, _ = c.Write(reply)
 	done := make(chan struct{}, 2)
 	go func() { _, _ = io.Copy(up, c); done <- struct{}{} }()
 	go func() { _, _ = io.Copy(c, up); done <- struct{}{} }()

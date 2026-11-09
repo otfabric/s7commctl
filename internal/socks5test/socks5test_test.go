@@ -3,6 +3,8 @@
 package socks5test
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -101,5 +103,29 @@ func TestServer(t *testing.T) {
 	}
 	if u := Start(t); u.URL() != "socks5://"+u.Addr {
 		t.Errorf("URL = %q", u.URL())
+	}
+}
+
+// fatalTB records Fatalf instead of stopping the test.
+type fatalTB struct {
+	testing.TB
+	fatal string
+}
+
+func (f *fatalTB) Helper() {}
+
+func (f *fatalTB) Fatalf(format string, args ...any) { f.fatal = fmt.Sprintf(format, args...) }
+
+func TestStartListenFailure(t *testing.T) {
+	errListen := errors.New("no sockets")
+	listen = func(string, string) (net.Listener, error) { return nil, errListen }
+	t.Cleanup(func() { listen = net.Listen })
+
+	tb := &fatalTB{}
+	if s := Start(tb); s != nil {
+		t.Fatalf("Start returned %v after a listen failure, want nil", s)
+	}
+	if tb.fatal != "listen: no sockets" {
+		t.Errorf("Fatalf message = %q, want the listen error", tb.fatal)
 	}
 }
