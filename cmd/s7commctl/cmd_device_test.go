@@ -323,6 +323,17 @@ func TestWrite_Failures(t *testing.T) {
 
 	p.writeRet = 0x05
 	runCLI(t, base("--value", "01")...).wantFailure(t, "write failed")
+
+	// A write-protected DB: a CPU 1214C answers item code 0x03 (go-s7comm
+	// testdata/captures/python-snap7). The PLC refused it: exit 6.
+	p.writeRet = 0x03
+	r := runCLI(t, base("--value", "01")...).wantFailure(t, "write failed")
+	if code := exitCodeOf(t, r.err); code != 6 {
+		t.Fatalf("write-protected DB: exit %d, want 6", code)
+	}
+	if !strings.Contains(strings.ToLower(r.err.Error()), "access") {
+		t.Fatalf("write-protected DB: error %q does not say access was refused", r.err)
+	}
 }
 
 func TestFormatWriteAddress(t *testing.T) {
