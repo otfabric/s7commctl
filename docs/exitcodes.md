@@ -10,7 +10,7 @@ s7commctl's exit codes are a script-facing contract (`cmd/s7commctl/exit.go`). T
 | 3 | invalid_input | A request larger than the negotiated PDU |
 | 4 | transport | Connecting failed, the connection is lost, a listener cannot start |
 | 5 | timeout | A deadline passed |
-| 6 | protocol | The PLC refused the request, or a malformed response or protocol failure |
+| 6 | protocol | The PLC refused the request (for example a write to a write-protected DB, item code `0x03`), or a malformed response or protocol failure |
 | 9 | permission | The operating system refused an operation, for example binding port 102 |
 | 10 | internal | An output file could not be opened or written |
 | 130 | interrupted | SIGINT or SIGTERM before a result. `record` stopped this way ends with 0 |

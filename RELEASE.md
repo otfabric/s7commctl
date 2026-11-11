@@ -1,5 +1,24 @@
 # s7commctl Releases
 
+## v0.7.1
+
+**Date:** 2026-11-11
+**Previous release:** v0.7.0
+
+### Changed
+
+- Built on go-s7comm v0.15.1. Its recorded traffic now includes a real S7-1200 (CPU 1214C, firmware V4.2): it refuses a write to a write-protected DB with item code `0x03`, "object access is not allowed" ([python-snap7#976](https://github.com/gijzelaerr/python-snap7/issues/976#issuecomment-6800464989)). `write` reports such a refusal as access refused and exits 6. No change in behaviour.
+
+### Documentation
+
+- docs/exitcodes.md: exit 6 names a write to a write-protected DB as an example.
+
+### Tests
+
+- `write` to a DB the PLC refuses with item code `0x03` exits 6, and its error says access was refused.
+
+---
+
 ## v0.7.0
 
 **Date:** 2026-11-09
