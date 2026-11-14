@@ -1,5 +1,18 @@
 # s7commctl Releases
 
+## v0.8.1
+
+**Date:** 2026-11-14
+**Previous release:** v0.8.0
+
+No change to commands or output.
+
+### Changed
+
+- Built on go-s7comm v0.16.1 (was v0.16.0). The client splits an answer into its parameter and data sections with `int` arithmetic; behaviour is the same.
+
+---
+
 ## v0.8.0
 
 **Date:** 2026-11-14
