@@ -3,8 +3,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/otfabric/go-cotp v1.3.0 h1:IXfqzdt86GPg6+il9g2GIWLFFmtNuVBMiE2ceLrXJpo=
 github.com/otfabric/go-cotp v1.3.0/go.mod h1:0XVoeSHnOPj8XWI484tUC2U6dbaKCtVk0z18MipM37s=
-github.com/otfabric/go-s7comm v0.15.2 h1:70KuOBfIv2iBRMkJOBkw0HwWjaRhoO7GAuR+7SvjyJQ=
-github.com/otfabric/go-s7comm v0.15.2/go.mod h1:8pjMauBQINYDtOofwiTnYtYSCQtMTQFMc6Ry9Bd39pg=
+github.com/otfabric/go-s7comm v0.16.0 h1:PimKw/GK1kSzjni+zS0YBgAEhq/HzlKSuxClmXxCV+k=
+github.com/otfabric/go-s7comm v0.16.0/go.mod h1:8pjMauBQINYDtOofwiTnYtYSCQtMTQFMc6Ry9Bd39pg=
 github.com/otfabric/go-tpkt v1.1.0 h1:KTCQePVqqnvDB0A3O4ReRqfa5jJ3jnsEYNUdS91vD4o=
 github.com/otfabric/go-tpkt v1.1.0/go.mod h1:qGkrTZ03mIwhCQZCL9S3OaOAVyw9TVdZXJf1lSYRLog=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
