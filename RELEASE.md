@@ -1,5 +1,19 @@
 # s7commctl Releases
 
+## v0.7.2
+
+**Date:** 2026-11-14
+**Previous release:** v0.7.1
+
+No change to commands or output.
+
+### Changed
+
+- Built on go-s7comm v0.15.2 (was v0.15.1), which is built on go-cotp v1.3.0. The client no longer fails the connection when the responding transport selector of the connection confirm differs from the called one (X.224 §13.3.4).
+- CI: otfabric/engineering policy 1.6, the shared workflows v3.8.0, and one pull request workflow with a single required check.
+
+---
+
 ## v0.7.1
 
 **Date:** 2026-11-11
