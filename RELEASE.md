@@ -1,5 +1,19 @@
 # s7commctl Releases
 
+## v0.8.0
+
+**Date:** 2026-11-14
+**Previous release:** v0.7.2
+
+### Changed
+
+- Built on go-s7comm v0.16.0 (was v0.15.2):
+  - `scan read-ranges` bounds each probe by `--timeout` (default 5000 ms); before, a probe waited as long as the command ran.
+  - A read whose chunk comes back short now stops there: `short-read` output holds only the bytes from the start address up to that chunk.
+  - The client refuses transport messages longer than 65535 bytes.
+
+---
+
 ## v0.7.2
 
 **Date:** 2026-11-14
