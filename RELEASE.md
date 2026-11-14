@@ -1,5 +1,18 @@
 # s7commctl Releases
 
+## v0.8.2
+
+**Date:** 2026-11-14
+**Previous release:** v0.8.1
+
+No change to the command.
+
+### Changed
+
+- Built on go-s7comm v0.16.2 (was v0.16.1), go-cotp v1.4.0 (was v1.3.0) and go-tpkt v1.2.0 (was v1.1.0). go-cotp v1.3.1 holds a TSDU being reassembled in one buffer bounded by `MaxTSDULength`; v1.4.0 refuses a DC, ER, AK, EA or RJ with octets after its header and encoder values that do not fit their field (go-cotp RELEASE.md, v1.3.1 and v1.4.0).
+
+---
+
 ## v0.8.1
 
 **Date:** 2026-11-14
