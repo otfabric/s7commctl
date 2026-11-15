@@ -116,3 +116,28 @@ func TestDiscover_InvalidRange(t *testing.T) {
 		runCLI(t, append(args, tc.flags...)...).wantUsage(t, tc.msg)
 	}
 }
+
+// TestDiscover_PublicRangeWarning: a range with publicly routable addresses is
+// named on stderr before the scan, unless --no-exposure-warning is set.
+func TestDiscover_PublicRangeWarning(t *testing.T) {
+	const warning = "WARNING: range 8.8.8.0/30 holds publicly routable addresses; verify authorization and network exposure\n"
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"public", []string{"--cidr", "8.8.8.0/30"}, warning},
+		{"public, quiet", []string{"--cidr", "8.8.8.0/30", "--quiet"}, warning},
+		{"public, suppressed", []string{"--cidr", "8.8.8.0/30", "--no-exposure-warning"}, ""},
+		{"private", []string{"--cidr", "10.0.0.0/30"}, ""},
+		{"private /8", []string{"--cidr", "10.0.0.0/8"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recordDiscover(t)
+			r := runCLI(t, append([]string{"discover"}, tc.args...)...).ok(t)
+			if r.stderr != tc.want {
+				t.Fatalf("stderr = %q, want %q", r.stderr, tc.want)
+			}
+		})
+	}
+}

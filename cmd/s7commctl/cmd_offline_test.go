@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -84,6 +85,25 @@ func TestSniffAndReplay_CancelWhileWaitingForClient(t *testing.T) {
 	}
 }
 
+// setOnAccept installs the accept hook for the rest of the test.
+func setOnAccept(t *testing.T, fn func(net.Conn)) {
+	t.Helper()
+	onAccept = fn
+	t.Cleanup(func() { onAccept = nil })
+}
+
+// awaitSignal waits for ch to be closed.
+func awaitSignal(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(10 * time.Second):
+		t.Fatalf("no %s", what)
+	}
+}
+
+// TestSniffAndReplay_CancelWhileReading: an interrupt once the command has
+// accepted its client ends the read with exit 130.
 func TestSniffAndReplay_CancelWhileReading(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "script.hex")
 	if err := os.WriteFile(script, []byte("0300000702f080\n"), 0o600); err != nil {
@@ -93,10 +113,32 @@ func TestSniffAndReplay_CancelWhileReading(t *testing.T) {
 		t.Run(args[0], func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			accepted := make(chan struct{})
+			setOnAccept(t, func(net.Conn) { close(accepted) })
 			addr := freeAddr(t)
 			_, wait := startServerContext(t, ctx, addr, append(args, "--listen", addr)...)
-			time.Sleep(50 * time.Millisecond) // let it accept and block in the read
+			awaitSignal(t, accepted, "client accepted") // past the accept: the cancel lands on the read
 			cancel()
+			wantInterrupted(t, wait())
+		})
+	}
+}
+
+// TestSniffAndReplay_CancelBeforeTheFirstRead: an interrupt that closes the
+// connection between the accept and the first read is an interrupt too.
+func TestSniffAndReplay_CancelBeforeTheFirstRead(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "script.hex")
+	if err := os.WriteFile(script, []byte("0300000702f080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"sniff"}, {"replay", "--script", script}} {
+		t.Run(args[0], func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			// What the interrupt does, before the command reaches its read.
+			setOnAccept(t, func(c net.Conn) { cancel(); _ = c.Close() })
+			addr := freeAddr(t)
+			_, wait := startServerContext(t, ctx, addr, append(args, "--listen", addr)...)
 			wantInterrupted(t, wait())
 		})
 	}
@@ -201,6 +243,20 @@ func TestReplay_AnswersFromScript(t *testing.T) {
 	if n := strings.Count(r.stdout, "fn=0x04"); n != 3 {
 		t.Fatalf("logged %d requests, want 3:\n%s", n, r.stdout)
 	}
+}
+
+// writeReplayScript writes frames as a replay script, one hex line each.
+func writeReplayScript(t *testing.T, frames ...[]byte) string {
+	t.Helper()
+	var b strings.Builder
+	for _, f := range frames {
+		b.WriteString(hex.EncodeToString(f) + "\n")
+	}
+	path := filepath.Join(t.TempDir(), "script.hex")
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestReplay_InvalidFrameIsAFailure(t *testing.T) {
@@ -412,13 +468,34 @@ func FuzzReadPCAPPackets(f *testing.F) {
 	})
 }
 
-// FuzzParseEthernetIPv4TCP: an accepted packet yields a payload inside the packet.
+// FuzzParseEthernetIPv4TCP: an accepted packet yields a payload inside the
+// packet and inside its IPv4 datagram (the total length, or the captured
+// length where the total length is 0), behind both headers.
 func FuzzParseEthernetIPv4TCP(f *testing.F) {
 	f.Add([]byte{})
 	f.Add(make([]byte, 54))
+	ack := make([]byte, 60) // a pure ACK, padded to the Ethernet minimum
+	ack[12], ack[14], ack[17], ack[22], ack[23], ack[46] = 0x08, 0x45, 40, 64, 6, 0x50
+	f.Add(ack)
 	f.Fuzz(func(t *testing.T, pkt []byte) {
-		if _, payload, ok := parseEthernetIPv4TCP(pkt); ok && len(payload) > len(pkt)-54 {
+		_, payload, ok := parseEthernetIPv4TCP(pkt)
+		if !ok {
+			return
+		}
+		if len(payload) > len(pkt)-54 {
 			t.Fatalf("payload %d from packet %d", len(payload), len(pkt))
+		}
+		total := int(binary.BigEndian.Uint16(pkt[16:18]))
+		if total == 0 {
+			total = len(pkt) - 14
+		}
+		ihl := int(pkt[14]&0x0F) * 4
+		off := int(pkt[14+ihl+12]>>4) * 4
+		if len(payload) != total-ihl-off {
+			t.Fatalf("payload %d, datagram of %d with headers of %d and %d", len(payload), total, ihl, off)
+		}
+		if flags := binary.BigEndian.Uint16(pkt[20:22]); flags&0x3FFF != 0 {
+			t.Fatalf("fragment accepted: flags 0x%04X", flags)
 		}
 	})
 }

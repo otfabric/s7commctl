@@ -60,7 +60,15 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 	}
 
 	cpuState, _ := c.GetCPUState(cmd.Context())
-	protection, _ := c.GetProtectionLevel(cmd.Context())
+	// When the protection level cannot be read it is unknown: null in JSON with
+	// the reason in protection_error, "unknown" and the reason in text.
+	protection, protErr := c.GetProtectionLevel(cmd.Context())
+	var protectionLevel, protectionError any = protection.String(), nil
+	protectionText := protection.String()
+	if protErr != nil {
+		protectionLevel, protectionError = nil, protErr.Error()
+		protectionText = fmt.Sprintf("unknown (%v)", protErr)
+	}
 
 	if diagnosticConfig.Quiet {
 		_, _ = fmt.Fprintln(os.Stdout, cpuState.String())
@@ -78,7 +86,8 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 			"request": reqMeta,
 			"result": map[string]any{
 				"cpu_state":        cpuState.String(),
-				"protection_level": protection.String(),
+				"protection_level": protectionLevel,
+				"protection_error": protectionError,
 				"diagnostic":       output.DiagBufferResultMap(diag),
 			},
 		}
@@ -87,7 +96,7 @@ func runDiagnostic(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "CPU State: %s\nProtection: %s\n\n", cpuState.String(), protection.String())
+	_, _ = fmt.Fprintf(os.Stdout, "CPU State: %s\nProtection: %s\n\n", cpuState.String(), protectionText)
 
 	_, _ = fmt.Fprint(os.Stdout, output.FormatDiagBuffer(diag, diagnosticConfig.Format))
 	return nil

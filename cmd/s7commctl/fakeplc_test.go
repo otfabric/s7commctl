@@ -25,10 +25,12 @@ const (
 
 // fakeWrite is one Write Var the fake PLC received.
 type fakeWrite struct {
-	area  byte
-	db    int
-	start int
-	data  []byte
+	area      byte
+	db        int
+	start     int // byte address
+	data      []byte
+	transport byte // S7ANY transport size: 0x01 BIT, 0x02 BYTE
+	bitAddr   int  // S7ANY address in bits: start*8 plus the bit of a BIT item
 }
 
 // fakeReply is the outcome of a Read Var, an SZL read or a Write Var.
@@ -210,8 +212,10 @@ func (p *fakePLC) handleRead(ref uint16, param []byte) []byte {
 
 func (p *fakePLC) handleWrite(ref uint16, param, data []byte) []byte {
 	size, db, area, start := parseS7Any(param[2:14])
+	a := param[2:14]
 	p.mu.Lock()
-	p.writes = append(p.writes, fakeWrite{area: area, db: db, start: start, data: append([]byte(nil), data[4:4+size]...)})
+	p.writes = append(p.writes, fakeWrite{area: area, db: db, start: start, data: append([]byte(nil), data[4:4+size]...),
+		transport: a[3], bitAddr: int(a[9])<<16 | int(a[10])<<8 | int(a[11])})
 	p.mu.Unlock()
 	ret := p.writeRet
 	if ret == 0 {

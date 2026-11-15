@@ -62,7 +62,9 @@ func runProbeRackSlot(cmd *cobra.Command, args []string) error {
 		}
 		results = append(results, result)
 		if i < repeat-1 && interval > 0 {
-			time.Sleep(interval)
+			if err := pause(cmd.Context(), interval); err != nil {
+				return ExitRuntime(err)
+			}
 		}
 	}
 	result := results[len(results)-1]

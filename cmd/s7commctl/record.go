@@ -79,12 +79,6 @@ func runRecord(cmd *cobra.Command, args []string) error {
 		return ExitUsage(err)
 	}
 
-	f, err := os.OpenFile(filepath.Clean(recConfig.Output), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		return ExitRuntime(fmt.Errorf("open output file: %w", err))
-	}
-	defer func() { _ = f.Close() }()
-
 	opts, err := recConfig.ToClientOptions()
 	if err != nil {
 		return ExitUsage(err)
@@ -94,6 +88,14 @@ func runRecord(cmd *cobra.Command, args []string) error {
 		return ExitConnect(fmt.Errorf("connect failed: %w", err))
 	}
 	defer func() { _ = c.Close() }()
+
+	// Opened, and an existing file emptied, only once there is a connection to
+	// record from.
+	f, err := os.OpenFile(filepath.Clean(recConfig.Output), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return ExitRuntime(fmt.Errorf("open output file: %w", err))
+	}
+	defer func() { _ = f.Close() }()
 
 	addr := model.Address{Area: area, DBNumber: recConfig.DBNumber, Start: recConfig.Offset, Size: recConfig.Size}
 	ticker := time.NewTicker(time.Duration(recConfig.EveryMS) * time.Millisecond)

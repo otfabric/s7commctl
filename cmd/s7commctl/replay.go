@@ -35,7 +35,7 @@ var rplConfig = replayConfig{
 var replayCmd = &cobra.Command{
 	Use:   "replay",
 	Short: "Replay scaffold for deterministic S7 response scripts",
-	Long:  "Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.",
+	Long:  "Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.",
 	RunE:  runReplay,
 }
 
@@ -69,6 +69,10 @@ func runReplay(cmd *cobra.Command, args []string) error {
 	idx := 0
 	for {
 		if err := conn.SetReadDeadline(time.Now().Add(300 * time.Second)); err != nil {
+			// An interrupt closes the connection; it may do so before the read.
+			if cerr := cmd.Context().Err(); cerr != nil {
+				return ExitRuntime(cerr)
+			}
 			return ExitRuntime(err)
 		}
 		frame, rerr := readTPKTFrame(conn)
@@ -92,7 +96,9 @@ func runReplay(cmd *cobra.Command, args []string) error {
 			continue
 		}
 		if rplConfig.DelayMS > 0 {
-			time.Sleep(time.Duration(rplConfig.DelayMS) * time.Millisecond)
+			if err := pause(cmd.Context(), time.Duration(rplConfig.DelayMS)*time.Millisecond); err != nil {
+				return ExitRuntime(err)
+			}
 		}
 		if _, err := conn.Write(responses[idx]); err != nil {
 			return ExitRuntime(fmt.Errorf("write scripted response: %w", err))

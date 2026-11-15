@@ -30,7 +30,7 @@ var snfConfig = sniffConfig{
 var sniffCmd = &cobra.Command{
 	Use:   "sniff",
 	Short: "Passive S7 frame decoder over TCP stream input",
-	Long:  "Listens for raw TPKT frames on a local TCP socket and decodes them without initiating any PLC communication. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.",
+	Long:  "Listens for raw TPKT frames on the --listen address and decodes them without initiating any PLC communication. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.",
 	RunE:  runSniff,
 }
 
@@ -59,6 +59,10 @@ func runSniff(cmd *cobra.Command, args []string) error {
 	frames := 0
 	for snfConfig.MaxFrame == 0 || frames < snfConfig.MaxFrame {
 		if err := conn.SetReadDeadline(time.Now().Add(120 * time.Second)); err != nil {
+			// An interrupt closes the connection; it may do so before the read.
+			if cerr := cmd.Context().Err(); cerr != nil {
+				return ExitRuntime(cerr)
+			}
 			return ExitRuntime(err)
 		}
 		frame, rerr := readTPKTFrame(conn)

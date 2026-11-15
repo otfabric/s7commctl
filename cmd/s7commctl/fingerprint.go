@@ -61,7 +61,7 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 	}
 
 	connInfo := c.ConnectionInfo()
-	protection, _ := c.GetProtectionLevel(cmd.Context())
+	protection, protErr := c.GetProtectionLevel(cmd.Context())
 	readRes, readErr := c.ReadMerkers(cmd.Context(), 0, 1)
 	_, uploadProbeErr := c.ListBlocks(cmd.Context(), model.BlockDB)
 
@@ -79,13 +79,19 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 		AcceptedTSAP:       fmt.Sprint(connInfo.RemoteTSAP),
 		Protection:         protection.String(),
 		SupportsRead:       readErr == nil && readRes != nil && readRes.OK(),
-		WriteLikelyAllowed: protection == model.ProtectionNone,
+		WriteLikelyAllowed: protErr == nil && protection == model.ProtectionNone,
 		SupportsSZL:        true,
 		UploadProbeOK:      uploadProbeErr == nil,
 	}
+	if protErr != nil {
+		// The level is unknown: the value the library returns with the error is
+		// not the device's.
+		view.Protection = ""
+		view.ProtectionError = protErr.Error()
+	}
 
 	if fingerprintConfig.Quiet {
-		_, _ = fmt.Fprintln(os.Stdout, view.CPUType)
+		_, _ = fmt.Fprintln(os.Stdout, output.Printable(view.CPUType))
 		return nil
 	}
 
@@ -103,6 +109,9 @@ func runFingerprint(cmd *cobra.Command, args []string) error {
 		data, _ := json.MarshalIndent(out, "", "  ")
 		_, _ = fmt.Fprintln(os.Stdout, string(data))
 		return nil
+	}
+	if protErr != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "WARNING: protection level unknown: %v\n", protErr)
 	}
 	_, _ = fmt.Fprint(os.Stdout, output.FormatFingerprint(view, fingerprintConfig.Format))
 	return nil

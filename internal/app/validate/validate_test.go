@@ -4,6 +4,7 @@ package validate
 
 import (
 	"bytes"
+	"net"
 	"testing"
 )
 
@@ -230,4 +231,87 @@ func TestValidateAreaAndBlockType_Aliases(t *testing.T) {
 			t.Errorf("ValidateBlockType(%q): %v", bt, err)
 		}
 	}
+}
+
+func TestCIDRHasPublicIP(t *testing.T) {
+	for _, tc := range []struct {
+		cidr string
+		want bool
+	}{
+		{"10.0.0.0/30", false},
+		{"10.0.0.5/32", false},
+		{"10.0.0.0/8", false},
+		{"10.0.0.0/7", true}, // holds 11.0.0.0/8
+		{"172.16.0.0/12", false},
+		{"172.16.0.0/11", true}, // holds 172.0.0.0/12
+		{"192.168.1.0/24", false},
+		{"192.168.0.0/15", true},
+		{"127.0.0.1/32", false},
+		{"169.254.0.0/16", false},
+		{"224.0.0.0/24", false},
+		{"224.0.0.0/23", true},
+		{"8.8.8.0/30", true},
+		{"100.64.0.0/10", true},
+		{"0.0.0.0/0", true},
+		{"::1/128", false},
+		{"fe80::/64", false},
+		{"fd00::/8", false},
+		{"ff02::/16", false},
+		{"ff12::1/128", false},
+		{"2001:db8::/32", true},
+		{"::/0", true},
+		{"::ffff:10.0.0.0/104", false},
+		{"::ffff:8.8.8.0/120", true},
+		{"not a cidr", false},
+		{"10.0.0.0", false},
+	} {
+		if got := CIDRHasPublicIP(tc.cidr); got != tc.want {
+			t.Errorf("CIDRHasPublicIP(%q) = %v, want %v", tc.cidr, got, tc.want)
+		}
+	}
+}
+
+// TestCIDRHasPublicIP_AgreesWithIsPublicIP: for small ranges, the answer is
+// what IsPublicIP says of their addresses.
+func TestCIDRHasPublicIP_AgreesWithIsPublicIP(t *testing.T) {
+	for _, cidr := range []string{"9.255.255.252/30", "10.255.255.252/30", "11.0.0.0/30", "172.15.255.254/31", "172.31.255.254/31",
+		"172.32.0.0/31", "192.167.255.255/32", "126.255.255.255/32", "128.0.0.0/32", "169.253.255.255/32", "223.255.255.255/32",
+		"224.0.0.254/31", "224.0.1.0/32", "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128", "fec0::/128", "fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128",
+		"fe00::/128", "ff03::/128"} {
+		_, n, err := net.ParseCIDR(cidr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		public := false
+		for ip := n.IP.Mask(n.Mask); n.Contains(ip); ip = nextIP(ip) {
+			if IsPublicIP(ip.String()) {
+				public = true
+			}
+			if ip.Equal(lastIP(n)) {
+				break
+			}
+		}
+		if got := CIDRHasPublicIP(cidr); got != public {
+			t.Errorf("CIDRHasPublicIP(%q) = %v, IsPublicIP of its addresses: %v", cidr, got, public)
+		}
+	}
+}
+
+func nextIP(ip net.IP) net.IP {
+	out := append(net.IP(nil), ip...)
+	for i := len(out) - 1; i >= 0; i-- {
+		out[i]++
+		if out[i] != 0 {
+			break
+		}
+	}
+	return out
+}
+
+func lastIP(n *net.IPNet) net.IP {
+	out := append(net.IP(nil), n.IP...)
+	for i := range out {
+		out[i] |= ^n.Mask[i]
+	}
+	return out
 }

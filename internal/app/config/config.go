@@ -138,6 +138,8 @@ type DiscoverConfig struct {
 	RateMS   int    `flag:"rate-ms" env:"S7COMMCTL_RATE_MS" desc:"Delay between rack/slot probes in ms"`
 	Format   string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: json, table, text"`
 	Quiet    bool   `flag:"quiet" env:"S7COMMCTL_QUIET" desc:"Only print discovered IP addresses (one per line)"`
+
+	NoExposureWarning bool `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress the warning for a range with publicly routable addresses (e.g. authorized environments)"`
 }
 
 func DefaultDiscoverConfig() DiscoverConfig {
@@ -178,6 +180,7 @@ type WriteConfig struct {
 	Offset    int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
 	Value     string `flag:"value" desc:"Value to write"`
 	Type      string `flag:"type" desc:"Data type"`
+	Bit       int    `flag:"bit" desc:"Bit 0-7 of the byte at --offset: with --type bool, write only that bit"`
 	Format    string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: text, json"`
 	Dangerous bool   `flag:"dangerous" desc:"Confirm write operation"`
 	Force     bool   `flag:"force" desc:"Skip confirmation"`

@@ -8,10 +8,10 @@ import (
 )
 
 func TestConfirmWrite(t *testing.T) {
-	if !confirmWrite(strings.NewReader("yes\n")) {
+	if !confirmWrite(strings.NewReader("yes\n"), "") {
 		t.Fatal("expected yes confirmation")
 	}
-	if confirmWrite(strings.NewReader("no\n")) {
+	if confirmWrite(strings.NewReader("no\n"), "") {
 		t.Fatal("expected no confirmation to fail")
 	}
 }

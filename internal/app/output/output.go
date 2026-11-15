@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/otfabric/go-s7comm/client"
 	"github.com/otfabric/go-s7comm/model"
@@ -84,7 +86,7 @@ func FormatDeviceInfo(info *model.DeviceInfo, format string) string {
 		if fw == "" {
 			fw = "N/A"
 		}
-		return fmt.Sprintf("Order: %s, Module: %s, CPU: %s, FW: %s\n", order, module, cpu, fw)
+		return fmt.Sprintf("Order: %s, Module: %s, CPU: %s, FW: %s\n", Printable(order), Printable(module), Printable(cpu), Printable(fw))
 	}
 }
 
@@ -96,25 +98,49 @@ func strOrNull(s string) any {
 	return s
 }
 
+// Printable returns s with every character that is not printable, and every
+// octet that is not valid UTF-8, written as \xNN (one per octet). Text and
+// table output pass the strings a device sends through it, so they print as
+// text.
+func Printable(s string) string {
+	var sb strings.Builder
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if (r == utf8.RuneError && size == 1) || !unicode.IsPrint(r) {
+			for _, b := range []byte(s[i : i+size]) {
+				_, _ = fmt.Fprintf(&sb, `\x%02x`, b)
+			}
+		} else {
+			sb.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return sb.String()
+}
+
+// tableCell is value made printable and cut to the 29 characters of a table
+// cell.
+func tableCell(value string) string {
+	value = Printable(value)
+	if utf8.RuneCountInString(value) > 29 {
+		value = string([]rune(value)[:26]) + "..."
+	}
+	return value
+}
+
 // writeRowNA uses "N/A" for empty values (identify plain/table).
 func writeRowNA(sb *strings.Builder, key, value string) {
 	if value == "" {
 		value = "N/A"
 	}
-	if len(value) > 29 {
-		value = value[:26] + "..."
-	}
-	_, _ = fmt.Fprintf(sb, "│ %-15s │ %-29s │\n", key, value)
+	_, _ = fmt.Fprintf(sb, "│ %-15s │ %-29s │\n", key, tableCell(value))
 }
 
 func writeRow(sb *strings.Builder, key, value string) {
 	if value == "" {
 		value = "-"
 	}
-	if len(value) > 29 {
-		value = value[:26] + "..."
-	}
-	_, _ = fmt.Fprintf(sb, "│ %-15s │ %-29s │\n", key, value)
+	_, _ = fmt.Fprintf(sb, "│ %-15s │ %-29s │\n", key, tableCell(value))
 }
 
 func FormatBlocks(blocks []model.BlockInfo, format string) string {
@@ -162,6 +188,8 @@ func FormatBlocks(blocks []model.BlockInfo, format string) string {
 
 // FingerprintView is the CLI view of a device fingerprint. Uses WriteLikelyAllowed and UploadProbeOK
 // instead of library naming to reflect inferred semantics (not direct capability probes).
+// ProtectionError is set, and Protection empty, when the protection level could
+// not be read: the level is unknown.
 type FingerprintView struct {
 	CPUType            string
 	CPUGeneration      int
@@ -175,6 +203,7 @@ type FingerprintView struct {
 	DetectedSlot       int
 	AcceptedTSAP       string
 	Protection         string
+	ProtectionError    string
 	SupportsRead       bool
 	WriteLikelyAllowed bool
 	SupportsSZL        bool
@@ -199,7 +228,8 @@ func FingerprintResultMap(view *FingerprintView) map[string]any {
 		"detected_rack":        view.DetectedRack,
 		"detected_slot":        view.DetectedSlot,
 		"accepted_tsap":        view.AcceptedTSAP,
-		"protection":           view.Protection,
+		"protection":           strOrNull(view.Protection),
+		"protection_error":     strOrNull(view.ProtectionError),
 		"supports_read":        view.SupportsRead,
 		"write_likely_allowed": view.WriteLikelyAllowed,
 		"supports_szl":         view.SupportsSZL,
@@ -226,11 +256,15 @@ func FormatFingerprint(view *FingerprintView, format string) string {
 		writeRow(&sb, "Order Number", view.OrderNumber)
 		writeRow(&sb, "Firmware", view.FirmwareVer)
 		writeRow(&sb, "PDU Size", fmt.Sprintf("%d", view.PDUSize))
-		writeRow(&sb, "Protection", view.Protection)
+		protection := view.Protection
+		if view.ProtectionError != "" {
+			protection = "unknown"
+		}
+		writeRow(&sb, "Protection", protection)
 		sb.WriteString("└─────────────────┴───────────────────────────────┘\n")
 		return sb.String()
 	default:
-		return fmt.Sprintf("CPU: %s, PDU: %d\n", view.CPUType, view.PDUSize)
+		return fmt.Sprintf("CPU: %s, PDU: %d\n", Printable(view.CPUType), view.PDUSize)
 	}
 }
 

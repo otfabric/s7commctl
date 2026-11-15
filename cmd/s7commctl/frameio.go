@@ -19,6 +19,10 @@ const (
 	tpktMaxPacketLength = 65535
 )
 
+// onAccept, when set, is called with each connection acceptConn accepts.
+// Tests use it to act once the command has its client.
+var onAccept func(net.Conn)
+
 // acceptConn waits for one client. Cancelling ctx ends the wait.
 func acceptConn(ctx context.Context, ln net.Listener) (net.Conn, error) {
 	stop := context.AfterFunc(ctx, func() { _ = ln.Close() })
@@ -29,6 +33,9 @@ func acceptConn(ctx context.Context, ln net.Listener) (net.Conn, error) {
 			return nil, ExitRuntime(cerr)
 		}
 		return nil, ExitConnect(fmt.Errorf("accept failed: %w", err))
+	}
+	if onAccept != nil {
+		onAccept(conn)
 	}
 	return conn, nil
 }

@@ -1,5 +1,55 @@
 # s7commctl Releases
 
+## v0.9.0
+
+**Date:** 2026-11-15
+**Previous release:** v0.8.4
+
+### Summary
+
+`write` gains `--bit` to write one BOOL, and `write --type string` leaves a STRING's maximum length unchanged. `fingerprint` and `diagnostic` report a protection level they could not read as unknown; text output of device-supplied strings escapes non-printable characters; `pcap-decode` decodes a capture packet by packet and ends each packet's TCP data where its IPv4 datagram ends; an interrupt ends a `--repeat` pause or a replay delay at once. Nothing is removed; JSON gains keys and, where noted, a null value.
+
+### Added
+
+- `write --bit 0-7`: with `--type bool`, writes only that bit of the byte at `--offset` (go-s7comm `WriteBit`, bit address offset·8+bit). The success line names the bit address, for example `DB1.DBX4.3` or `Q0.3`. `--bit` with another type or outside 0-7 is a usage error (exit 2) and nothing is sent. JSON: `request.bit`, and `result.written` is 1.
+- `write --type bool` without `--bit` prints a warning on stderr that it writes the whole byte (all eight bits) and names `--bit`. The write itself is unchanged.
+- `discover` prints a warning on stderr when `--cidr` holds publicly routable addresses, also with `--quiet`, and scans as before; `--no-exposure-warning` (`S7COMMCTL_NO_EXPOSURE_WARNING`) suppresses it.
+- JSON: `result.protection_error` in `fingerprint` and `diagnostic`, null when the protection level was read.
+
+### Changed
+
+- The `write` confirmation prompt names what is written and where: length, type and value, the address, area, DB, offset (and bit), IP and port, and the rack and slot (or the TSAPs, or automatic detection). Before, it said only that the operation writes to PLC memory. `--dangerous`, `--force` and the answer `yes` are unchanged.
+- The `write` success line labels a byte address as a byte: `DB1.DBB4`, `MB100`, `IB3`, `QB4` (was `DB1.DBX4`, `M100`, `I3`, `Q4`).
+- An interrupt (SIGINT or SIGTERM) during the pause between `compare read` or `probe rackslot` runs (`--repeat`, `--interval-ms`) or during `replay --delay-ms` ends the command at once with exit 130. A `compare read` run cut short by an interrupt is no result: exit 130, where it exited 0 and printed that run. docs/exitcodes.md lists the cases.
+- `record` connects before it opens its `--output` file, so an existing file is not emptied when the connection cannot be made.
+- `pcap-decode` decodes each packet as it reads it: memory follows the largest packet rather than the size of the capture, and the frames before a damaged packet are printed before the error. Taking a frame from a stream no longer copies the rest of the stream.
+- `sniff --help` and `replay --help` say that the default address listens on every interface without authentication.
+
+### Fixed
+
+- `write --type string` writes the STRING's current length (byte 1) and its characters from `--offset`+1, and leaves byte 0, the maximum length the PLC program declares, unchanged; before, byte 0 was overwritten with the value's length. The success line names the STRING, and `result.written` is the value's length plus one.
+- `fingerprint` and `diagnostic`: a protection level that could not be read is reported as unknown (`null` in `protection` and `protection_level`, the reason in `protection_error`; `unknown` in table and text output, and `fingerprint` also on stderr), and `fingerprint` reports `write_likely_allowed: false`. Before, it was reported as "No Protection".
+- `pcap-decode` takes a packet's TCP payload only up to the IPv4 total length, so Ethernet padding and trailers are not read as stream data; IP fragments and packets whose total length does not fit the captured data are skipped. A total length of 0 (segmentation offload) uses the captured length.
+- `identify`, `fingerprint` and `profile` print non-printable characters and invalid UTF-8 in device-supplied strings as `\xNN` in text, table and `--quiet` output, and table cells are cut between characters. JSON output is unchanged.
+- `sniff` and `replay` exit 130 when interrupted right after the client connects, before the first read (it could be 4).
+
+### Documentation
+
+- README: `write --bit`, BOOL and STRING writes, the prompt, the `discover` warning, the `sniff` and `replay` listeners, how `pcap-decode` reads a capture, the safety model. Corrected: the go-s7comm version note, the CI description, which commands print the JSON `error` envelope, and a reference to a requirements document that is not in the repository.
+- SECURITY.md: new "Listeners" and "Limits" sections; the exposure warnings, the write prompt, device-supplied text and the protection level.
+- docs/commands.md: `write --bit`, `discover --no-exposure-warning`, the `sniff` and `replay` descriptions. docs/json-output.md: `write` `bit` and `written`, `protection` and `protection_level` may be null, `protection_error`. docs/exitcodes.md: the interrupt cases of this release.
+
+### Tests
+
+- `write`: `--bit` on DB, Q, M and I sends one BIT item at offset·8+bit and no byte write; invalid `--bit` sends nothing; bool without `--bit` warns; a STRING write against a simulated DB keeps byte 0 for short, empty and long values; the prompt names target, value and connection for each connection mode.
+- `fingerprint`, `diagnostic`: the protection SZL refused, without a record, with a short record and with a level the library does not know (0, 4), in JSON, table and text; levels 1 to 3 as before.
+- Device-supplied strings with control characters, C1 bytes and invalid UTF-8 through `identify`, `fingerprint` and `profile` in every text format; `output.Printable` and table cells.
+- `pcap-decode`: payload bounded by the IPv4 total length (table of lengths), fragments, a padded packet inside a split frame, frames before a damaged packet, allocation budgets for a capture of 128 maximal packets and for 32768 frames in one segment, the pending stream data after every packet size; `FuzzParseEthernetIPv4TCP` checks the payload against the datagram.
+- Interrupts during the `compare read` and `probe rackslot` interval, during a `compare read` run and during the `replay` delay, with `testing/synctest` for the wait itself; the `sniff` and `replay` cancel tests wait for the accepted connection instead of sleeping, and cover an interrupt before the first read.
+- `discover` with a public and a private range, with and without `--no-exposure-warning`; `validate.CIDRHasPublicIP` against `IsPublicIP` address by address; `record` leaves an existing output file unchanged when it cannot connect.
+
+---
+
 ## v0.8.4
 
 **Date:** 2026-11-15

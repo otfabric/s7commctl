@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/otfabric/go-s7comm/client"
 	"github.com/otfabric/go-s7comm/model"
@@ -484,5 +486,82 @@ func TestDeviceInfoAllFields(t *testing.T) {
 		if !strings.Contains(table, s) {
 			t.Errorf("table lacks %q:\n%s", s, table)
 		}
+	}
+}
+
+func TestPrintable(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"", ""},
+		{"CPU 315-2 PN/DP", "CPU 315-2 PN/DP"},
+		{"Größe µ", "Größe µ"},
+		{"\x1b[2K", `\x1b[2K`},
+		{"a\x07b\rc\td\x00", `a\x07b\x0dc\x09d\x00`},
+		{"\x7f", `\x7f`},
+		{"\x9b", `\x9b`},         // a C1 control as a lone octet: not UTF-8
+		{"\u009b", `\xc2\x9b`},   // the same control as UTF-8
+		{"\xff\xfe", `\xff\xfe`}, // not UTF-8
+		{" ", `\xe2\x80\xa8`},
+		{"�", "�"}, // the replacement character itself is printable
+	} {
+		if got := Printable(tc.in); got != tc.want {
+			t.Errorf("Printable(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestFormat_DeviceTextsArePrintable: every text format of identify and
+// fingerprint prints a device text with its control characters escaped.
+func TestFormat_DeviceTextsArePrintable(t *testing.T) {
+	const unprintable = "CPU\x1b[2K\x07\r\x9b\u009b\xff"
+	info := &model.DeviceInfo{OrderNumber: unprintable, ModuleName: unprintable, CPUType: unprintable, FWVersion: unprintable, SerialNumber: unprintable}
+	view := &FingerprintView{CPUType: unprintable, OrderNumber: unprintable, FirmwareVer: unprintable}
+	for name, out := range map[string]string{
+		"identify table":    FormatDeviceInfo(info, FormatTable),
+		"identify text":     FormatDeviceInfo(info, FormatText),
+		"fingerprint table": FormatFingerprint(view, FormatTable),
+		"fingerprint text":  FormatFingerprint(view, FormatText),
+	} {
+		if !utf8.ValidString(out) {
+			t.Errorf("%s: not UTF-8: %q", name, out)
+		}
+		for _, r := range out {
+			if r != '\n' && unicode.IsControl(r) {
+				t.Errorf("%s: control character %U in %q", name, r, out)
+				break
+			}
+		}
+		if !strings.Contains(out, `CPU\x1b[2K\x07`) {
+			t.Errorf("%s: no escaped text in %q", name, out)
+		}
+	}
+}
+
+// TestTableCell_CutsCharacters: a long cell is cut at 26 characters, not
+// octets, so a multi-octet character stays whole.
+func TestTableCell_CutsCharacters(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{strings.Repeat("ä", 29), strings.Repeat("ä", 29)},
+		{strings.Repeat("ä", 30), strings.Repeat("ä", 26) + "..."},
+		{strings.Repeat("a", 29), strings.Repeat("a", 29)},
+		{strings.Repeat("a", 30), strings.Repeat("a", 26) + "..."},
+	} {
+		if got := tableCell(tc.in); got != tc.want || !utf8.ValidString(got) {
+			t.Errorf("tableCell(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestFingerprint_ProtectionUnknown(t *testing.T) {
+	view := &FingerprintView{CPUType: "CPU 315", ProtectionError: "SZL 0x0232 holds no protection record"}
+	m := FingerprintResultMap(view)
+	if m["protection"] != nil || m["protection_error"] != "SZL 0x0232 holds no protection record" {
+		t.Errorf("protection = %v, protection_error = %v", m["protection"], m["protection_error"])
+	}
+	if table := FormatFingerprint(view, FormatTable); !strings.Contains(table, "│ Protection      │ unknown ") {
+		t.Errorf("table:\n%s", table)
+	}
+	known := FingerprintResultMap(&FingerprintView{Protection: "Write Protected"})
+	if known["protection"] != "Write Protected" || known["protection_error"] != nil {
+		t.Errorf("known level: %v", known)
 	}
 }

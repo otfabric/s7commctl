@@ -139,13 +139,13 @@ func runProfile(cmd *cobra.Command, args []string) error {
 	fmt.Println("Identify support:     ", identifyLabel)
 	if identifyInfo != nil {
 		if identifyInfo.CPUType != "" {
-			fmt.Printf("  CPU type:   %s\n", identifyInfo.CPUType)
+			fmt.Printf("  CPU type:   %s\n", output.Printable(identifyInfo.CPUType))
 		}
 		if identifyInfo.OrderNumber != "" {
-			fmt.Printf("  Order:      %s\n", identifyInfo.OrderNumber)
+			fmt.Printf("  Order:      %s\n", output.Printable(identifyInfo.OrderNumber))
 		}
 		if identifyInfo.ModuleName != "" {
-			fmt.Printf("  Module:     %s\n", identifyInfo.ModuleName)
+			fmt.Printf("  Module:     %s\n", output.Printable(identifyInfo.ModuleName))
 		}
 	}
 	fmt.Println("Block list support:   ", yesNo(blocksOK))

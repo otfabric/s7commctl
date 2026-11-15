@@ -89,9 +89,15 @@ func runCompareRead(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return ExitRuntime(fmt.Errorf("compare read failed: %w", err))
 		}
+		// A run an interrupt cut short is no result.
+		if err := cmd.Context().Err(); err != nil {
+			return ExitRuntime(err)
+		}
 		results = append(results, result)
 		if i < repeat-1 && interval > 0 {
-			time.Sleep(interval)
+			if err := pause(cmd.Context(), interval); err != nil {
+				return ExitRuntime(err)
+			}
 		}
 	}
 	result := results[len(results)-1]
