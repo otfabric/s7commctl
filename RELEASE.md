@@ -1,5 +1,21 @@
 # s7commctl Releases
 
+## v0.8.4
+
+**Date:** 2026-11-15
+**Previous release:** v0.8.3
+
+No command or flag is added or changed.
+
+### Changed
+
+- Built on go-s7comm v0.16.4 (was v0.16.3) (go-s7comm RELEASE.md, v0.16.4). For the tool this means:
+  - A command whose request times out ends its session; a command that makes several requests reports that it is not connected for the ones after it, where each of them failed with a reference mismatch before.
+  - An answer longer than the PDU size the tool proposed, a block list of more than 65,536 entries and an upload of more than 8 MiB end the command with a protocol error.
+  - A write to a device that negotiated an odd PDU size is sent in chunks of even length.
+
+---
+
 ## v0.8.3
 
 **Date:** 2026-11-14
