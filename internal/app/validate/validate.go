@@ -6,6 +6,7 @@ package validate
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"regexp"
 	"strconv"
 	"strings"
@@ -49,6 +50,46 @@ func IsPublicIP(ip string) bool {
 		return false
 	}
 
+	return true
+}
+
+// nonPublicPrefixes are the ranges IsPublicIP reports as not public.
+var nonPublicPrefixes = func() []netip.Prefix {
+	out := []netip.Prefix{
+		netip.MustParsePrefix("10.0.0.0/8"),
+		netip.MustParsePrefix("172.16.0.0/12"),
+		netip.MustParsePrefix("192.168.0.0/16"),
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("169.254.0.0/16"),
+		netip.MustParsePrefix("224.0.0.0/24"),
+		netip.MustParsePrefix("::1/128"),
+		netip.MustParsePrefix("fe80::/10"),
+		netip.MustParsePrefix("fc00::/7"),
+	}
+	for flags := range 16 { // link-local multicast: ffX2::/16
+		out = append(out, netip.PrefixFrom(netip.AddrFrom16([16]byte{0xff, byte(flags<<4 | 2)}), 16))
+	}
+	return out
+}()
+
+// CIDRHasPublicIP reports whether the range cidr holds an address IsPublicIP
+// reports as public. It is false for a range ValidateCIDR refuses.
+func CIDRHasPublicIP(cidr string) bool {
+	_, n, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+	addr, _ := netip.AddrFromSlice(n.IP)
+	bits, _ := n.Mask.Size()
+	if addr.Is4In6() && bits >= 96 {
+		addr, bits = addr.Unmap(), bits-96
+	}
+	p := netip.PrefixFrom(addr, bits)
+	for _, np := range nonPublicPrefixes {
+		if np.Bits() <= p.Bits() && np.Contains(p.Addr()) {
+			return false
+		}
+	}
 	return true
 }
 

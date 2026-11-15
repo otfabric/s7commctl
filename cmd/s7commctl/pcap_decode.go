@@ -3,7 +3,6 @@
 package s7commctl
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -48,43 +47,59 @@ func runPcapDecode(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	packets, err := readPCAPPackets(f)
+	pr, err := newPCAPReader(f)
 	if err != nil {
 		return ExitRuntime(err)
 	}
+	if err := decodePCAP(pr, os.Stdout, pdcConfig.Format, pdcConfig.Port); err != nil {
+		return ExitRuntime(err)
+	}
+	return nil
+}
 
-	buffers := map[string][]byte{}
-	for _, pkt := range packets {
+// decodePCAP decodes the TPKT frames of a capture while it reads it, one
+// packet at a time, and writes one event per frame to w. Each direction of a
+// connection is its own byte stream with its own tpktStream. port, when above
+// 0, selects the packets from or to that TCP port.
+func decodePCAP(pr *pcapReader, w io.Writer, format string, port int) error {
+	streams := map[string]*tpktStream{}
+	for {
+		pkt, err := pr.next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 		meta, payload, ok := parseEthernetIPv4TCP(pkt)
 		if !ok {
 			continue
 		}
-		if pdcConfig.Port > 0 && meta.SrcPort != pdcConfig.Port && meta.DstPort != pdcConfig.Port {
+		if port > 0 && meta.SrcPort != port && meta.DstPort != port {
 			continue
 		}
 		if len(payload) == 0 {
 			continue
 		}
 
-		// One buffer per direction: each direction of a connection is its own byte stream.
 		source := fmt.Sprintf("%s:%d>%s:%d", meta.SrcIP, meta.SrcPort, meta.DstIP, meta.DstPort)
-		buffers[source] = append(buffers[source], payload...)
+		s := streams[source]
+		if s == nil {
+			s = &tpktStream{}
+			streams[source] = s
+		}
+		s.write(payload)
 		for {
-			frame, rest, ok := popTPKTFrame(buffers[source])
+			frame, ok := s.next()
 			if !ok {
-				buffers[source] = rest
 				break
 			}
-			buffers[source] = rest
-
 			summary, derr := inspectTPKTFrame(frame)
-			if werr := writeFrameEvent(os.Stdout, pdcConfig.Format, source, summary, derr); werr != nil {
-				return ExitRuntime(werr)
+			if werr := writeFrameEvent(w, format, source, summary, derr); werr != nil {
+				return werr
 			}
 		}
 	}
-
-	return nil
 }
 
 // pcapMaxPacketLength is the largest captured length libpcap accepts (MAXIMUM_SNAPLEN).
@@ -97,7 +112,16 @@ type tcpMeta struct {
 	DstPort int
 }
 
-func readPCAPPackets(r io.Reader) ([][]byte, error) {
+// pcapReader reads the packets of a classic pcap file one at a time.
+type pcapReader struct {
+	r     io.Reader
+	order binary.ByteOrder
+	hdr   [16]byte
+	buf   []byte // holds the packet next returned
+}
+
+// newPCAPReader reads the global header of a pcap file from r.
+func newPCAPReader(r io.Reader) (*pcapReader, error) {
 	gh := make([]byte, 24)
 	if _, err := io.ReadFull(r, gh); err != nil {
 		return nil, fmt.Errorf("read pcap global header: %w", err)
@@ -120,32 +144,39 @@ func readPCAPPackets(r io.Reader) ([][]byte, error) {
 	if network != 1 {
 		return nil, fmt.Errorf("unsupported pcap linktype %d (need ethernet)", network)
 	}
+	return &pcapReader{r: r, order: order}, nil
+}
 
-	var packets [][]byte
+// next returns the next packet with captured data, or io.EOF at the end of the
+// capture; a capture that ends inside a packet header ends there too. The
+// packet is valid until the following call: the reader reuses its buffer, so
+// reading a capture holds one packet, at most pcapMaxPacketLength octets.
+func (p *pcapReader) next() ([]byte, error) {
 	for {
-		ph := make([]byte, 16)
-		_, err := io.ReadFull(r, ph)
+		_, err := io.ReadFull(p.r, p.hdr[:])
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			break
+			return nil, io.EOF
 		}
 		if err != nil {
 			return nil, fmt.Errorf("read pcap packet header: %w", err)
 		}
-		incl := order.Uint32(ph[8:12])
+		incl := p.order.Uint32(p.hdr[8:12])
 		if incl == 0 {
 			continue
 		}
 		if incl > pcapMaxPacketLength {
 			return nil, fmt.Errorf("pcap packet length %d exceeds %d", incl, pcapMaxPacketLength)
 		}
-		pkt := make([]byte, incl)
-		if _, err := io.ReadFull(r, pkt); err != nil {
+		n := int(incl) // at most pcapMaxPacketLength
+		if cap(p.buf) < n {
+			p.buf = make([]byte, min(max(n, 2*cap(p.buf)), pcapMaxPacketLength))
+		}
+		pkt := p.buf[:n]
+		if _, err := io.ReadFull(p.r, pkt); err != nil {
 			return nil, fmt.Errorf("read pcap packet payload: %w", err)
 		}
-		packets = append(packets, pkt)
+		return pkt, nil
 	}
-
-	return packets, nil
 }
 
 func parseEthernetIPv4TCP(packet []byte) (tcpMeta, []byte, bool) {
@@ -172,6 +203,20 @@ func parseEthernetIPv4TCP(packet []byte) (tcpMeta, []byte, bool) {
 	if ip[9] != 6 {
 		return tcpMeta{}, nil, false
 	}
+	// A fragment (more fragments set, or an offset) is not a whole TCP segment.
+	if binary.BigEndian.Uint16(ip[6:8])&0x3FFF != 0 {
+		return tcpMeta{}, nil, false
+	}
+	// The datagram ends where its total length says: what follows in the
+	// captured frame (Ethernet padding, a trailer) is not TCP data. A total
+	// length of 0 is what a capture of a segmentation-offload packet holds; the
+	// captured length counts then.
+	if totalLen := int(binary.BigEndian.Uint16(ip[2:4])); totalLen != 0 {
+		if totalLen < ihl || totalLen > len(ip) {
+			return tcpMeta{}, nil, false
+		}
+		ip = ip[:totalLen]
+	}
 
 	tcp := ip[ihl:]
 	if len(tcp) < 20 {
@@ -191,6 +236,7 @@ func parseEthernetIPv4TCP(packet []byte) (tcpMeta, []byte, bool) {
 
 // popTPKTFrame pops one TPKT frame from buf.
 // Returns (frame, remainder, true) or (nil, buf, false) if no complete frame.
+// frame and remainder are parts of buf, not copies.
 func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 	for len(buf) >= tpktHeaderLength {
 		if buf[0] != tpktVersion {
@@ -205,7 +251,36 @@ func popTPKTFrame(buf []byte) ([]byte, []byte, bool) {
 		if len(buf) < totalLen {
 			return nil, buf, false
 		}
-		return bytes.Clone(buf[:totalLen]), bytes.Clone(buf[totalLen:]), true
+		return buf[:totalLen:totalLen], buf[totalLen:], true
 	}
 	return nil, buf, false
+}
+
+// tpktStream reassembles the TPKT frames of one direction of a TCP
+// connection. Its pending octets are buf[off:]: next consumes them by moving
+// off, write drops the consumed ones once per packet before it appends. After
+// next has returned every complete frame, fewer than tpktMaxPacketLength
+// octets are pending (an incomplete frame), so the buffer holds at most one
+// TPKT maximum plus one packet.
+type tpktStream struct {
+	buf []byte
+	off int
+}
+
+// write appends the payload of one packet.
+func (s *tpktStream) write(payload []byte) {
+	if s.off > 0 {
+		n := copy(s.buf, s.buf[s.off:])
+		s.buf = s.buf[:n]
+		s.off = 0
+	}
+	s.buf = append(s.buf, payload...)
+}
+
+// next returns the next complete frame. The frame is valid until the next
+// write.
+func (s *tpktStream) next() ([]byte, bool) {
+	frame, rest, ok := popTPKTFrame(s.buf[s.off:])
+	s.off = len(s.buf) - len(rest)
+	return frame, ok
 }

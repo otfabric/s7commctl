@@ -59,9 +59,9 @@ func runIdentify(cmd *cobra.Command, args []string) error {
 
 	if identifyConfig.Quiet {
 		if info.CPUType != "" {
-			_, _ = fmt.Fprintln(os.Stdout, info.CPUType)
+			_, _ = fmt.Fprintln(os.Stdout, output.Printable(info.CPUType))
 		} else {
-			_, _ = fmt.Fprintln(os.Stdout, info.OrderNumber)
+			_, _ = fmt.Fprintln(os.Stdout, output.Printable(info.OrderNumber))
 		}
 		return nil
 	}

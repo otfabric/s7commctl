@@ -143,6 +143,7 @@ Discover S7 devices on a network
 |---|---|---|
 | `--cidr` | string | CIDR range to scan [env: S7COMMCTL_CIDR] |
 | `--format` | string | Output format: json, table, text [env: S7COMMCTL_FORMAT] (default "table") |
+| `--no-exposure-warning` | bool | Suppress the warning for a range with publicly routable addresses (e.g. authorized environments) [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
 | `--parallel` | int | Number of parallel probes [env: S7COMMCTL_PARALLEL] (default 10) |
 | `--profile` | string | Probe profile: quick (rack 0, slot 1-2), standard (rack 0-1, slot 0-3), full (rack 0-3, slot 0-5) [env: S7COMMCTL_DISCOVER_PROFILE] (default "standard") |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
@@ -381,7 +382,7 @@ Record periodic S7 reads to a local file
 
 ## `s7commctl replay`
 
-Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.
+Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.
 
 | Flag | Type | Meaning |
 |---|---|---|
@@ -430,7 +431,7 @@ Probe an area from start to end by step; consolidate adjacent readable probes in
 
 ## `s7commctl sniff`
 
-Listens for raw TPKT frames on a local TCP socket and decodes them without initiating any PLC communication. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.
+Listens for raw TPKT frames on the --listen address and decodes them without initiating any PLC communication. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.
 
 | Flag | Type | Meaning |
 |---|---|---|
@@ -461,6 +462,7 @@ Write data to an S7 device
 |---|---|---|
 | `--area` | string | Memory area (DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200) [env: S7COMMCTL_AREA] (default "DB") |
 | `--auto-rack-slot` | bool | Auto-detect rack/slot [env: S7COMMCTL_AUTO_RACK_SLOT] |
+| `--bit` | int | Bit 0-7 of the byte at --offset: with --type bool, write only that bit |
 | `--brute-rack-slot` | bool | Brute rack 0-3 and slot 0-5 [env: S7COMMCTL_BRUTE_RACK_SLOT] |
 | `--dangerous` | bool | Confirm write operation |
 | `--db` | int | Data block number [env: S7COMMCTL_DB] (default 1) |

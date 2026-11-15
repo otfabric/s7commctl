@@ -78,14 +78,14 @@ s7commctl provides a practical operator and engineering toolset for:
 
 ## Requirements implementation status
 
-Based on REQUIREMENTS.md, current status is:
+Current status:
 
 - Implemented
 	- Discovery workflow with TCP/102 probing, rack/slot probing, negotiated PDU/TSAP reporting
 	- Identify command using SZL-backed device metadata (CPU/order/module/firmware where exposed)
 	- Read for DB, I, Q, M, T, C and extended areas (DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200)
-	- Typed read/write support for BOOL, INT, DINT, REAL, STRING
-	- Write safety model: explicit `--dangerous`, confirmation prompt, optional `--force`
+	- Typed reads of BOOL, INT, DINT, REAL, STRING; typed writes of INT, DINT, REAL, STRING (current length and characters) and BOOL (one bit with `--bit`, otherwise the whole byte)
+	- Write safety model: explicit `--dangerous`, a confirmation prompt that names the target and the value, optional `--force`
 	- Block management: list, DB listing, block info, block upload (OB/DB/FB/FC/SFB/SFC support path)
 	- Diagnostics: CPU state, protection level, diagnostic buffer
 	- Fingerprinting: CPU generation heuristic, PDU, AMQ calling/called, TSAP/rack/slot detection
@@ -122,7 +122,7 @@ Library code is consumed from the separate `otfabric/go-s7comm` module.
 - Go 1.26+
 - Network connectivity to S7 targets on TCP/102
 
-The library dependency `github.com/otfabric/go-s7comm` (currently v0.12.0) is a regular versioned module requirement in `go.mod`; no local `replace` or sibling checkout is needed.
+The library dependency `github.com/otfabric/go-s7comm` is a regular versioned module requirement in `go.mod`, which names the version; no local `replace` or sibling checkout is needed.
 
 ## Build
 
@@ -225,6 +225,8 @@ s7commctl discover --cidr 192.168.1.0/24 --rack-min 0 --rack-max 3 --slot-min 0 
 `--profile` sets the range: `quick` (rack 0, slot 1-2), `standard` (rack 0-1, slot 0-3, the default) or `full` (rack 0-3, slot 0-5). A bound set with `--rack-min`, `--rack-max`, `--slot-min`, `--slot-max` or their environment variables overrides the profile for that bound only. An empty range, or a rack or slot S7 cannot address, is a usage error.
 
 For script-friendly output (one IP per line), use `--quiet` or `--format quiet`; both are supported intentionally.
+
+When the range holds publicly routable addresses, `discover` prints a warning on stderr (also with `--quiet`) and scans anyway; `--no-exposure-warning` (or `S7COMMCTL_NO_EXPOSURE_WARNING`) suppresses it in authorized environments. The rule is the one of the other commands' target warning: RFC 1918 private, loopback, link-local and IPv6 unique-local addresses are not public.
 
 ### 2. Determine valid rack/slot values
 
@@ -336,11 +338,16 @@ s7commctl read --ip 192.168.1.10 --area M --offset 100 --size 8 --type int
 
 ### 8. Write memory safely
 
-Write requires explicit dangerous mode. Without force, a confirmation prompt is shown.
+Write requires explicit dangerous mode. Without force, a confirmation prompt on stderr names what is written and where: the length, type and value, the address (`DB1.DBB0`), area, DB, offset (and bit), the IP and port, and the rack and slot or TSAPs. Values can come from `S7COMMCTL_*` variables, so read it before you type `yes`.
 
 ```bash
 s7commctl write --ip 192.168.1.10 --area DB --db 1 --offset 0 --type int --value 123 --dangerous
 ```
+
+- `--type bool --bit N` (N 0-7) writes one bit, the bit address offset·8+N: `--area Q --offset 0 --bit 3` sets `Q0.3` and leaves the other seven bits of `QB0` unchanged. The success line names the bit (`DB1.DBX4.3`, `Q0.3`).
+- `--type bool` without `--bit` writes the whole byte at `--offset` (`0x01` or `0x00`, so the other seven bits become 0) and prints a warning on stderr that names `--bit`.
+- `--type string` writes an S7 STRING's current length (byte 1) and its characters from `--offset`+1, and leaves byte 0, the maximum length the PLC program declares, unchanged. The CLI does not read that maximum: a value longer than the STRING overwrites the bytes after it. A value longer than 254 octets is cut to 254.
+- Byte writes are labelled as bytes in the success line: `DB1.DBB0`, `MB100`, `QB4`.
 
 Non-interactive (automation):
 
@@ -400,7 +407,7 @@ s7commctl record --ip 192.168.1.10 --area M --offset 100 --size 4 --format hex -
 
 ### 14. Passive sniff decode
 
-Listen for raw TPKT streams on a local TCP socket and decode frames (single-client mode: one connection at a time).
+Listen for raw TPKT streams on the `--listen` address and decode frames (single-client mode: the first client that connects, one connection). The default `:15102` listens on every interface without authentication; `--listen 127.0.0.1:15102` accepts local clients only. See [SECURITY.md](SECURITY.md#listeners).
 
 ```bash
 s7commctl sniff --listen :15102 --format jsonl
@@ -408,7 +415,7 @@ s7commctl sniff --listen :15102 --format jsonl
 
 ### 15. Offline pcap decode
 
-Best-effort decode of S7-over-TCP frames from a pcap capture (no full TCP stream reassembly):
+Best-effort decode of S7-over-TCP frames from a pcap capture (no full TCP stream reassembly: no sequence numbers, retransmissions or reordering). Packets are decoded as they are read, one at a time, so memory follows the largest packet rather than the file. Each packet's TCP payload ends where its IPv4 total length says (Ethernet padding and trailers are not stream data); IP fragments are skipped. Frames decoded before a damaged packet are printed before the error:
 
 ```bash
 s7commctl pcap-decode --file capture.pcap --port 102 --format text
@@ -416,7 +423,7 @@ s7commctl pcap-decode --file capture.pcap --port 102 --format text
 
 ### 16. Replay server scaffold
 
-Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line). Single-client mode: one TCP connection; one response per scripted line until the connection closes.
+Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line). Single-client mode: the first client that connects, one TCP connection; one response per scripted line until the connection closes. The default `:1102` listens on every interface without authentication; `--listen 127.0.0.1:1102` accepts local clients only. An interrupt during `--delay-ms` ends the command at once with exit 130.
 
 ```bash
 s7commctl replay --listen :1102 --script replay.hex --format jsonl
@@ -469,7 +476,11 @@ s7commctl identify
 
 - Read operations are default-safe
 - Write operations require `--dangerous`
-- Interactive confirmation is required unless `--force` is set
+- Interactive confirmation is required unless `--force` is set; the prompt names the target, the address and the value
+- `--type bool` writes one bit only with `--bit`; without it the whole byte is written, with a warning on stderr
+- Text the PLC supplies (CPU type, order number, module name, firmware) is printed with non-printable characters escaped as `\xNN` in text, table and `--quiet` output, so the output shows them rather than passing them on; JSON escapes them as JSON does
+- `fingerprint` and `diagnostic` report a protection level they could not read as unknown (`null` in JSON, with `protection_error`), never as "No Protection"
+- Limits and the `sniff`/`replay` listeners: [SECURITY.md](SECURITY.md)
 
 Always validate addressing and scope in a non-production or controlled maintenance window before performing writes.
 
@@ -494,10 +505,12 @@ Note: low-level protocol codec coverage is primarily maintained in the `otfabric
 
 ## CI
 
-GitHub Actions workflow is provided at `.github/workflows/ci.yml` and runs:
+Every pull request runs `.github/workflows/pr.yml`, which calls:
 
-- `make quality`
-- `make build-all`
+- `ci.yml`, unless the change is documentation only: the organisation's shared `go-ci.yml` (lint, static analysis, tests with the race detector on Go 1.26 and 1.27, a total coverage gate, fuzzing, govulncheck) and a per-package coverage floor (`make coverage-pkg-check`)
+- `docs.yml`: docsync (the documents against the code) and the engineering policy check
+
+and gates them in one required check. `docs.yml` also runs on every push to `main`. `make check` runs the same checks locally. Releases are built by `release.yml` (the shared `go-binary-release.yml`).
 
 ## Output schema conventions (JSON)
 
@@ -507,7 +520,7 @@ Commands that operate on a single target use a consistent envelope when `--forma
 - **request**: includes `connection_mode` (`rack_slot` | `auto_rack_slot` | `explicit_tsap`) plus mode-specific fields (`rack`/`slot` or `local_tsap`/`remote_tsap`) and command-specific params (e.g. `area`, `offset`, `type`, `number`). For **read**, request has `connection` (when present) and `address` (area, db, offset, size). For **compare read**, request holds the read params and candidates.
 - **result**: operation outcome (device info, fingerprint, blocks, read data, etc.). Effective/detected rack/slot appear in result when relevant (e.g. fingerprint).
 
-Error output uses the same envelope with an **error** object (`code`, `message`) instead of result. **Discover** intentionally returns a **raw array** of discovered devices (one object per device); it is a multi-result query, not a single-target envelope. List blocks returns an array of blocks; single-target commands use the envelope above. **Write** request may include `value_truncated: true` when the value is long; the `value` field is then a 128-character preview.
+**Diagnostic** and **list blocks** print the same envelope with an **error** object (`code`, `message`) instead of result when they fail; other commands print errors on stderr and nothing on stdout ([docs/json-output.md](docs/json-output.md)). **Discover** intentionally returns a **raw array** of discovered devices (one object per device); it is a multi-result query, not a single-target envelope. List blocks returns an array of blocks; single-target commands use the envelope above. **Write** request may include `value_truncated: true` when the value is long; the `value` field is then a 128-character preview. With `--bit` the request has `bit`; `result.written` counts the octets written, or 1 for a bit write.
 
 ## Notes and limitations
 

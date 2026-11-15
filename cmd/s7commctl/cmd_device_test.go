@@ -5,12 +5,15 @@ package s7commctl
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/otfabric/go-s7comm/model"
 	"github.com/otfabric/go-s7comm/wire"
@@ -245,9 +248,13 @@ func TestWrite_Confirmation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newFakePLC(t)
 			withStdin(t, tc.stdin)
-			r := runCLI(t, p.args("write", "--value", "01", "--dangerous")...)
-			if !strings.Contains(r.stderr, "writes to PLC memory") {
-				t.Errorf("no warning on stderr: %q", r.stderr)
+			r := runCLI(t, p.args("write", "--db", "9", "--offset", "4", "--type", "int", "--value", "258", "--dangerous")...)
+			// The prompt names what is written, where and on which PLC.
+			for _, want := range []string{"writes to PLC memory", "2 bytes (int 258)", "to DB9.DBB4", "area DB", "DB 9", "offset 4",
+				"on 127.0.0.1 port " + p.port, "rack 0 slot 1", "Type 'yes'"} {
+				if !strings.Contains(r.stderr, want) {
+					t.Errorf("prompt lacks %q: %q", want, r.stderr)
+				}
 			}
 			if got := len(p.recordedWrites()); got != tc.writes {
 				t.Fatalf("PLC received %d writes, want %d", got, tc.writes)
@@ -270,13 +277,194 @@ func TestWrite_Confirmation(t *testing.T) {
 func TestWrite_ReachesThePLC(t *testing.T) {
 	p := newFakePLC(t)
 	runCLI(t, p.args("write", "--db", "9", "--offset", "4", "--type", "int", "--value", "258", "--dangerous", "--force")...).
-		ok(t).has(t, "Successfully wrote 2 bytes to DB9.DBX4")
+		ok(t).has(t, "Successfully wrote 2 bytes to DB9.DBB4")
 	w := p.recordedWrites()
 	if len(w) != 1 {
 		t.Fatalf("PLC received %d writes, want 1", len(w))
 	}
 	if w[0].area != byte(model.AreaDB) || w[0].db != 9 || w[0].start != 4 || !bytes.Equal(w[0].data, []byte{1, 2}) {
 		t.Fatalf("write = %+v", w[0])
+	}
+}
+
+// TestWrite_PromptNamesTheConnectionAndValue: the prompt shows the connection
+// as it is made and the value as it was given.
+func TestWrite_PromptNamesTheConnectionAndValue(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		want  []string
+	}{
+		{"merkers", []string{"--area", "M", "--offset", "100", "--value", "0102"},
+			[]string{"2 bytes (raw 0102) to MB100 (area M, offset 100)", "rack 0 slot 1"}},
+		{"explicit TSAP", []string{"--local-tsap", "0x0100", "--remote-tsap", "0x0301", "--value", "01"},
+			[]string{"local TSAP 0x0100, remote TSAP 0x0301"}},
+		{"auto rack/slot", []string{"--auto-rack-slot", "--value", "01"}, []string{"rack and slot detected automatically"}},
+		{"rack and slot", []string{"--rack", "1", "--slot", "3", "--value", "01"}, []string{"rack 1 slot 3"}},
+		{"bit", []string{"--area", "Q", "--offset", "2", "--type", "bool", "--bit", "5", "--value", "true"},
+			[]string{"1 bit (bool true) to Q2.5 (area Q, offset 2, bit 5)"}},
+		{"string", []string{"--offset", "4", "--type", "string", "--value", "abc"},
+			[]string{`4 bytes (string "abc") to DB1.DBB5 (area DB, DB 1, offset 5; current length and characters of the STRING at DB1.DBB4)`}},
+		{"long value", []string{"--value", strings.Repeat("ab", 70)}, []string{"(raw " + strings.Repeat("ab", 64) + "...)"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			withStdin(t, "no\n")
+			r := runCLI(t, p.args(append([]string{"write", "--dangerous"}, tc.flags...)...)...)
+			for _, want := range tc.want {
+				if !strings.Contains(r.stderr, want) {
+					t.Errorf("prompt lacks %q: %q", want, r.stderr)
+				}
+			}
+			if w := p.recordedWrites(); len(w) != 0 {
+				t.Fatalf("PLC received a write: %+v", w)
+			}
+		})
+	}
+}
+
+// TestWrite_BitWritesOneBit: --type bool --bit N writes bit N of the byte at
+// --offset with a BIT item and nothing else.
+func TestWrite_BitWritesOneBit(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		area  model.Area
+		off   int
+		bit   int
+		value byte
+		label string
+	}{
+		{"DB", []string{"--db", "1", "--offset", "4", "--bit", "3", "--value", "true"}, model.AreaDB, 4, 3, 1, "DB1.DBX4.3"},
+		{"outputs", []string{"--area", "Q", "--offset", "0", "--bit", "3", "--value", "true"}, model.AreaOutputs, 0, 3, 1, "Q0.3"},
+		{"merkers, false", []string{"--area", "M", "--offset", "10", "--bit", "0", "--value", "false"}, model.AreaMerkers, 10, 0, 0, "M10.0"},
+		{"inputs, bit 7", []string{"--area", "I", "--offset", "1", "--bit", "7", "--value", "1"}, model.AreaInputs, 1, 7, 1, "I1.7"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			args := p.args(append([]string{"write", "--type", "bool", "--dangerous", "--force"}, tc.flags...)...)
+			r := runCLI(t, args...).ok(t).has(t, "Successfully wrote 1 bit to "+tc.label+"\n")
+			if strings.Contains(r.stderr, "whole byte") {
+				t.Errorf("whole-byte warning on a bit write: %q", r.stderr)
+			}
+			w := p.recordedWrites()
+			if len(w) != 1 {
+				t.Fatalf("PLC received %d writes, want 1: %+v", len(w), w)
+			}
+			if w[0].transport != 0x01 || w[0].area != byte(tc.area) || w[0].bitAddr != tc.off*8+tc.bit ||
+				!bytes.Equal(w[0].data, []byte{tc.value}) {
+				t.Fatalf("write = %+v, want one BIT item at bit address %d with value %d", w[0], tc.off*8+tc.bit, tc.value)
+			}
+
+			m := runCLI(t, append(args, "--format", "json")...).ok(t).jsonOut(t)
+			wantField(t, m, float64(tc.bit), "request", "bit")
+			wantField(t, m, float64(1), "result", "written")
+		})
+	}
+}
+
+func TestWrite_BitValidation(t *testing.T) {
+	p := newFakePLC(t)
+	base := func(extra ...string) []string {
+		return p.args(append([]string{"write", "--dangerous", "--force"}, extra...)...)
+	}
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		msg   string
+	}{
+		{"bit 8", []string{"--type", "bool", "--bit", "8", "--value", "true"}, "--bit must be 0-7, got 8"},
+		{"negative bit", []string{"--type", "bool", "--bit", "-1", "--value", "true"}, "--bit must be 0-7, got -1"},
+		{"not bool", []string{"--type", "int", "--bit", "3", "--value", "1"}, "--bit applies to --type bool only"},
+		{"raw", []string{"--bit", "0", "--value", "01"}, "--bit applies to --type bool only"},
+		{"not a bool value", []string{"--type", "bool", "--bit", "3", "--value", "maybe"}, "invalid value"},
+		{"negative offset", []string{"--type", "bool", "--bit", "3", "--value", "true", "--offset", "-1"}, "write failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runCLI(t, base(tc.flags...)...).wantUsage(t, tc.msg)
+		})
+	}
+	if w := p.recordedWrites(); len(w) != 0 {
+		t.Fatalf("PLC received a write: %+v", w)
+	}
+}
+
+// TestWrite_BoolWithoutBitWritesTheByte: without --bit, --type bool writes the
+// whole byte as before, says so on stderr and labels the address as a byte.
+func TestWrite_BoolWithoutBitWritesTheByte(t *testing.T) {
+	p := newFakePLC(t)
+	r := runCLI(t, p.args("write", "--offset", "4", "--type", "bool", "--value", "true", "--dangerous", "--force")...).ok(t).
+		has(t, "Successfully wrote 1 bytes to DB1.DBB4\n")
+	if !strings.Contains(r.stderr, "writes the whole byte DB1.DBB4") || !strings.Contains(r.stderr, "--bit") {
+		t.Errorf("stderr = %q, want the whole-byte warning naming --bit", r.stderr)
+	}
+	w := p.recordedWrites()
+	if len(w) != 1 || w[0].transport != 0x02 || w[0].start != 4 || !bytes.Equal(w[0].data, []byte{1}) {
+		t.Fatalf("writes = %+v, want one byte 01 at 4", w)
+	}
+}
+
+// TestWrite_StringKeepsTheMaximumLength: byte 0 of an S7 STRING, its declared
+// maximum, is left as it is; the write starts at byte 1 with the current
+// length.
+func TestWrite_StringKeepsTheMaximumLength(t *testing.T) {
+	for _, tc := range []struct {
+		name, value string
+		want        []byte
+	}{
+		{"abc", "abc", []byte{3, 'a', 'b', 'c'}},
+		{"empty", "", []byte{0}},
+		{"254 characters", strings.Repeat("x", 254), append([]byte{254}, strings.Repeat("x", 254)...)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			// DB1 holds a STRING[20] at offset 4: maximum 20, empty.
+			mem := make([]byte, 300)
+			mem[4] = 20
+			r := runCLI(t, p.args("write", "--offset", "4", "--type", "string", "--value", tc.value, "--dangerous", "--force")...).ok(t)
+			for _, w := range p.recordedWrites() {
+				copy(mem[w.start:], w.data)
+			}
+			if mem[4] != 20 {
+				t.Fatalf("the maximum length is now %d, want 20", mem[4])
+			}
+			if got := mem[5 : 5+len(tc.want)]; !bytes.Equal(got, tc.want) {
+				t.Fatalf("bytes 5.. = % X, want % X", got, tc.want)
+			}
+			// The PLC's PDU of 240 octets splits a long value; nothing is written below offset 5.
+			if w := p.recordedWrites(); len(w) == 0 || w[0].start != 5 {
+				t.Fatalf("writes = %+v, want the first at offset 5", w)
+			}
+			r.has(t, fmt.Sprintf("Successfully wrote %d bytes to DB1.DBB5 (current length and characters of the STRING at DB1.DBB4)\n", len(tc.want)))
+		})
+	}
+
+	p := newFakePLC(t)
+	runCLI(t, p.args("write", "--offset", "-1", "--type", "string", "--value", "abc", "--dangerous", "--force")...).wantUsage(t, "write failed")
+	if w := p.recordedWrites(); len(w) != 0 {
+		t.Fatalf("PLC received a write: %+v", w)
+	}
+	m := runCLI(t, p.args("write", "--offset", "4", "--type", "string", "--value", "abc", "--format", "json", "--dangerous", "--force")...).
+		ok(t).jsonOut(t)
+	wantField(t, m, float64(4), "result", "written")
+	wantField(t, m, float64(4), "request", "offset")
+}
+
+func TestFormatBitAddress(t *testing.T) {
+	for _, tc := range []struct {
+		area         model.Area
+		db, off, bit int
+		want         string
+	}{
+		{model.AreaDB, 1, 4, 3, "DB1.DBX4.3"},
+		{model.AreaOutputs, 0, 0, 3, "Q0.3"},
+		{model.AreaMerkers, 0, 10, 0, "M10.0"},
+		{model.AreaInputs, 0, 1, 7, "I1.7"},
+		{model.AreaTimer, 0, 2, 1, "T 2.1"},
+	} {
+		if got := formatBitAddress(tc.area, tc.db, tc.off, tc.bit); got != tc.want {
+			t.Errorf("formatBitAddress(%v, %d, %d, %d) = %q, want %q", tc.area, tc.db, tc.off, tc.bit, got, tc.want)
+		}
 	}
 }
 
@@ -343,10 +531,10 @@ func TestFormatWriteAddress(t *testing.T) {
 		off  int
 		want string
 	}{
-		{model.AreaDB, 1, 0, "DB1.DBX0"},
-		{model.AreaMerkers, 0, 100, "M100"},
-		{model.AreaInputs, 0, 3, "I3"},
-		{model.AreaOutputs, 0, 4, "Q4"},
+		{model.AreaDB, 1, 0, "DB1.DBB0"},
+		{model.AreaMerkers, 0, 100, "MB100"},
+		{model.AreaInputs, 0, 3, "IB3"},
+		{model.AreaOutputs, 0, 4, "QB4"},
 		{model.AreaTimer, 0, 20, "T20"},
 		{model.AreaCounter, 0, 5, "C5"},
 	} {
@@ -488,6 +676,133 @@ func TestFingerprint_ReflectsDeviceRestrictions(t *testing.T) {
 	wantField(t, m, false, "result", "supports_read")
 	wantField(t, m, false, "result", "upload_probe_ok")
 	wantField(t, m, true, "result", "write_likely_allowed")
+}
+
+// TestProtectionUnknown: when the protection level cannot be read, fingerprint
+// and diagnostic report it as unknown with the reason, and fingerprint does not
+// infer that writes are allowed.
+func TestProtectionUnknown(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		reply fakeReply
+	}{
+		{"refused", fakeReply{ret: 0x05}},
+		{"no record", fakeReply{data: szlList(40)}},
+		{"short record", fakeReply{data: szlList(6, []byte{0, 4, 0, 1, 0, 0})}},
+		{"level 4", fakeReply{data: protectionSZL(4)}},
+		{"level 0", fakeReply{data: protectionSZL(0)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.szl = func(id, index uint16) fakeReply {
+				if id == wire.SZLProtectionInfo {
+					return tc.reply
+				}
+				return defaultSZL(id, index)
+			}
+
+			m := runCLI(t, p.args("fingerprint", "--format", "json")...).ok(t).jsonOut(t)
+			wantField(t, m, nil, "result", "protection")
+			wantField(t, m, false, "result", "write_likely_allowed")
+			if msg, _ := field(t, m, "result", "protection_error").(string); msg == "" {
+				t.Errorf("fingerprint: protection_error = %v, want the reason", field(t, m, "result", "protection_error"))
+			}
+
+			r := runCLI(t, p.args("fingerprint")...).ok(t).has(t, "│ Protection      │ unknown ")
+			r.lacks(t, "No Protection")
+			if !strings.Contains(r.stderr, "protection level unknown: ") {
+				t.Errorf("fingerprint: stderr = %q, want the reason", r.stderr)
+			}
+
+			m = runCLI(t, p.args("diagnostic", "--format", "json")...).ok(t).jsonOut(t)
+			wantField(t, m, nil, "result", "protection_level")
+			if msg, _ := field(t, m, "result", "protection_error").(string); msg == "" {
+				t.Errorf("diagnostic: protection_error = %v, want the reason", field(t, m, "result", "protection_error"))
+			}
+			runCLI(t, p.args("diagnostic")...).ok(t).has(t, "Protection: unknown (").lacks(t, "No Protection")
+		})
+	}
+}
+
+// TestProtectionKnown: a level that was read is reported as before, with no
+// protection_error.
+func TestProtectionKnown(t *testing.T) {
+	for _, tc := range []struct {
+		level byte
+		text  string
+		write bool
+	}{
+		{1, "No Protection", true},
+		{2, "Write Protected", false},
+		{3, "Read/Write Protected", false},
+	} {
+		p := newFakePLC(t)
+		p.szl = func(id, index uint16) fakeReply {
+			if id == wire.SZLProtectionInfo {
+				return fakeReply{data: protectionSZL(tc.level)}
+			}
+			return defaultSZL(id, index)
+		}
+		m := runCLI(t, p.args("fingerprint", "--format", "json")...).ok(t).jsonOut(t)
+		wantField(t, m, tc.text, "result", "protection")
+		wantField(t, m, nil, "result", "protection_error")
+		wantField(t, m, tc.write, "result", "write_likely_allowed")
+		m = runCLI(t, p.args("diagnostic", "--format", "json")...).ok(t).jsonOut(t)
+		wantField(t, m, tc.text, "result", "protection_level")
+		wantField(t, m, nil, "result", "protection_error")
+		r := runCLI(t, p.args("fingerprint")...).ok(t).has(t, tc.text)
+		if r.stderr != "" {
+			t.Errorf("level %d: stderr = %q", tc.level, r.stderr)
+		}
+	}
+}
+
+// deviceTexts are identification texts with characters that are not printable:
+// ESC sequences, BEL, CR, DEL, a C1 control as a lone octet and as UTF-8, and
+// octets that are not UTF-8.
+var deviceTexts = map[uint16]string{
+	2: "PLC\x1b]0;title\x07_1",
+	7: "CPU 315\x1b[2K\rX\x7f\x9b\u009b\xff\xfe",
+}
+
+// wantPrintable fails the test if out holds a control character other than a
+// newline, or octets that are not UTF-8.
+func wantPrintable(t *testing.T, what, out string) {
+	t.Helper()
+	if !utf8.ValidString(out) {
+		t.Errorf("%s: output is not valid UTF-8: %q", what, out)
+	}
+	for _, r := range out {
+		if r != '\n' && unicode.IsControl(r) {
+			t.Errorf("%s: control character %U in %q", what, r, out)
+			return
+		}
+	}
+}
+
+// TestDeviceTextsArePrinted: identification texts from the device print as
+// text in text, table and quiet output; JSON keeps them as they are.
+func TestDeviceTextsArePrinted(t *testing.T) {
+	p := newFakePLC(t)
+	p.szl = func(id, index uint16) fakeReply {
+		if id == wire.SZLComponentID {
+			return fakeReply{data: componentSZL(deviceTexts)}
+		}
+		return defaultSZL(id, index)
+	}
+	for _, args := range [][]string{
+		{"identify"}, {"identify", "--format", "text"}, {"identify", "--quiet"},
+		{"fingerprint"}, {"fingerprint", "--format", "text"}, {"fingerprint", "--quiet"},
+		{"profile"},
+	} {
+		r := runCLI(t, p.args(args...)...).ok(t)
+		wantPrintable(t, strings.Join(args, " "), r.stdout)
+		if !strings.Contains(r.stdout, `CPU 315\x1b[2K\x0dX`) {
+			t.Errorf("%v: the CPU type is not shown escaped:\n%s", args, r.stdout)
+		}
+	}
+	m := runCLI(t, p.args("identify", "--format", "json")...).ok(t).jsonOut(t)
+	wantField(t, m, "PLC\x1b]0;title\x07_1", "result", "module_name")
 }
 
 func TestClassifyCPUGeneration(t *testing.T) {
@@ -709,6 +1024,39 @@ func TestRecord_CancelEndsCleanly(t *testing.T) {
 	r := runCLIContext(t, ctx, p.args("record", "--every-ms", "1", "--output", out)...).ok(t)
 	if strings.Contains(r.stdout, "Recorded") {
 		t.Fatalf("a cancelled run printed the summary: %q", r.stdout)
+	}
+}
+
+// TestRecord_KeepsTheOutputWhenItCannotStart: an existing output file is left
+// as it is when record fails before it has a connection.
+func TestRecord_KeepsTheOutputWhenItCannotStart(t *testing.T) {
+	const previous = "previous recording\n"
+	for _, tc := range []struct {
+		name  string
+		args  func(out string) []string
+		check func(t *testing.T, r cliResult)
+	}{
+		{"connection refused", func(out string) []string {
+			return []string{"record", "--ip", "127.0.0.1", "--port", closedPort(t), "--timeout", "500", "--output", out}
+		}, func(t *testing.T, r cliResult) { r.wantFailure(t, "connect failed") }},
+		{"partial TSAP", func(out string) []string {
+			return []string{"record", "--ip", "127.0.0.1", "--local-tsap", "1", "--output", out}
+		}, func(t *testing.T, r cliResult) { r.wantUsage(t, "must be set together") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "record.jsonl")
+			if err := os.WriteFile(out, []byte(previous), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			tc.check(t, runCLI(t, tc.args(out)...))
+			b, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != previous {
+				t.Fatalf("output file = %q, want it unchanged", b)
+			}
+		})
 	}
 }
 

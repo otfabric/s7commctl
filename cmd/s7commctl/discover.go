@@ -50,6 +50,9 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 	if err := validate.ValidateCIDR(discoverConfig.CIDR); err != nil {
 		return ExitUsage(err)
 	}
+	if !discoverConfig.NoExposureWarning && validate.CIDRHasPublicIP(discoverConfig.CIDR) {
+		_, _ = fmt.Fprintf(os.Stderr, "WARNING: range %s holds publicly routable addresses; verify authorization and network exposure\n", discoverConfig.CIDR)
+	}
 
 	cfg := resolveDiscoverConfig(cmd, discoverConfig)
 	if err := validateDiscoverRange(cfg); err != nil {

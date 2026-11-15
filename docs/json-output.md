@@ -49,9 +49,9 @@ Other failures print a message on stderr and nothing on stdout. Exception: once 
 
 ### `write`
 
-`request`: connection fields, `area`, `db`, `offset`, `value` (the first 128 characters, followed by `...` and then `value_truncated: true`).
+`request`: connection fields, `area`, `db`, `offset` (as given), `bit` (only with `--bit`), `value` (the first 128 characters, followed by `...` and then `value_truncated: true`).
 
-`result`: `ok` (true), `written` (octets).
+`result`: `ok` (true), `written`: the octets written, or 1 for a bit write (`--type bool --bit N`). For `--type string` they are the STRING's current-length byte and its characters, written from `offset`+1, so `written` is the value's length plus one; byte 0, the STRING's maximum length, is not written.
 
 ### `identify`
 
@@ -59,11 +59,11 @@ Other failures print a message on stderr and nothing on stdout. Exception: once 
 
 ### `fingerprint`
 
-`result`: `cpu_type`, `order_number`, `firmware_ver`, `module_name` (string or null); `cpu_generation`, `accepted_tsap`, `protection` (string); `pdu_size`, `max_amq_calling`, `max_amq_called`, `detected_rack`, `detected_slot` (number); `supports_read`, `write_likely_allowed`, `supports_szl`, `upload_probe_ok`, `supports_pi` (boolean). `accepted_tsap` is the remote TSAP in decimal. `supports_szl` is true whenever the command got this far, and `supports_pi` is not probed and stays false.
+`result`: `cpu_type`, `order_number`, `firmware_ver`, `module_name` (string or null); `cpu_generation`, `accepted_tsap` (string); `protection` (string, or null when the protection level could not be read); `protection_error` (string: why it could not be read; null when it was read); `pdu_size`, `max_amq_calling`, `max_amq_called`, `detected_rack`, `detected_slot` (number); `supports_read`, `write_likely_allowed`, `supports_szl`, `upload_probe_ok`, `supports_pi` (boolean). `accepted_tsap` is the remote TSAP in decimal. `supports_szl` is true whenever the command got this far, and `supports_pi` is not probed and stays false. `write_likely_allowed` is true only when the protection level was read and is "No Protection"; an unknown level gives false.
 
 ### `diagnostic`
 
-`result`: `cpu_state`, `protection_level` (strings), `diagnostic` with `total_count` and `entries`. An entry has `timestamp` and `description` (string or null), and `event_id`, `event_class` (the high nibble of the event ID, e.g. 4 for mode transitions), `priority` (priority class), `info1`, `info2` (numbers). `timestamp` is the entry's BCD time stamp as hex digits.
+`result`: `cpu_state` (string), `protection_level` (string, or null when it could not be read), `protection_error` (string: why the protection level could not be read; null when it was read), `diagnostic` with `total_count` and `entries`. An entry has `timestamp` and `description` (string or null), and `event_id`, `event_class` (the high nibble of the event ID, e.g. 4 for mode transitions), `priority` (priority class), `info1`, `info2` (numbers). `timestamp` is the entry's BCD time stamp as hex digits.
 
 ### `list blocks`, `blocks`
 

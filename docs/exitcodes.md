@@ -17,6 +17,17 @@ s7commctl's exit codes are a script-facing contract (`cmd/s7commctl/exit.go`). T
 
 `S7COMMCTL_FORMAT` sets the default of `--format`; `S7COMMCTL_OUTPUT_FORMAT` is accepted too and `S7COMMCTL_FORMAT` wins.
 
+## Change in v0.9.0
+
+An interrupt (SIGINT or SIGTERM) now ends these commands at once with 130:
+
+| Case | Before | Now |
+|---|---|---|
+| `compare read` interrupted during a run, or with `--repeat N` during `--interval-ms` | 0, with the interrupted run printed as the result (after the interval) | 130, no result |
+| `probe rackslot --repeat N` interrupted during `--interval-ms` | 130 after the interval | 130 at once |
+| `replay --delay-ms` interrupted during the delay | 4 after the delay | 130 at once |
+| `sniff`, `replay` interrupted just after the client connected, before the first read | 4 or 130 | 130 |
+
 ## Change in v0.4.0
 
 An address or option that go-s7comm refuses before anything is sent (a `*client.ValidationError`, for example `--offset -1`, `--db 65537`, `scan --retries -1`) exits 2 instead of 6. Nothing reached the PLC, so 6 ("the PLC refused") was wrong.
