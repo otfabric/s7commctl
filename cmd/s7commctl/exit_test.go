@@ -112,3 +112,24 @@ func TestClassifiedExitCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestReadStatusCode: a failed read's status gives its exit code: the
+// connection (4), a timeout (5), and the PLC or the protocol (6) otherwise.
+func TestReadStatusCode(t *testing.T) {
+	for _, tc := range []struct {
+		status client.ReadStatus
+		want   int
+	}{
+		{client.ReadStatusTransportErr, codeTransport},
+		{client.ReadStatusTimeout, codeTimeout},
+		{client.ReadStatusRejected, codeProtocol},
+		{client.ReadStatusProtocolErr, codeProtocol},
+		{client.ReadStatusEmptyRead, codeProtocol},
+		{client.ReadStatusShortRead, codeProtocol},
+		{client.ReadStatusInconclusive, codeProtocol},
+	} {
+		if got := readStatusCode(tc.status); got != tc.want {
+			t.Errorf("readStatusCode(%s) = %d, want %d", tc.status, got, tc.want)
+		}
+	}
+}

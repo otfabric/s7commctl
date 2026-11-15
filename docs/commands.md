@@ -365,6 +365,7 @@ Record periodic S7 reads to a local file
 | `--format` | string | Output format: jsonl, hex [env: S7COMMCTL_FORMAT] (default "jsonl") |
 | `--ip` | string | S7 device IP address [env: S7COMMCTL_IP] |
 | `--local-tsap` | string | Local TSAP (decimal or 0x hex) [env: S7COMMCTL_LOCAL_TSAP] |
+| `--max-failures` | int | Stop after this many consecutive samples fail with a transport error or timeout (0 = never stop) [env: S7COMMCTL_MAX_FAILURES] (default 5) |
 | `--no-exposure-warning` | bool | Suppress public routable IP warning (e.g. authorized environments) [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
 | `--offset` | int | Byte offset [env: S7COMMCTL_OFFSET] |
 | `--output` | string | Output file path [env: S7COMMCTL_OUTPUT] (default "record.jsonl") |
@@ -382,13 +383,13 @@ Record periodic S7 reads to a local file
 
 ## `s7commctl replay`
 
-Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.
+Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. The default 127.0.0.1:1102 accepts local clients only; --listen :PORT listens on every interface, without authentication. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.
 
 | Flag | Type | Meaning |
 |---|---|---|
 | `--delay-ms` | int | Delay before each scripted response [env: S7COMMCTL_REPLAY_DELAY_MS] |
 | `--format` | string | Output format: text, jsonl [env: S7COMMCTL_FORMAT] (default "text") |
-| `--listen` | string | Replay listen address [env: S7COMMCTL_REPLAY_LISTEN] (default ":1102") |
+| `--listen` | string | Replay listen address [env: S7COMMCTL_REPLAY_LISTEN] (default "127.0.0.1:1102") |
 | `--script` | string | Script file with hex-encoded response frames [env: S7COMMCTL_REPLAY_SCRIPT] |
 
 ## `s7commctl scan`
@@ -431,12 +432,12 @@ Probe an area from start to end by step; consolidate adjacent readable probes in
 
 ## `s7commctl sniff`
 
-Listens for raw TPKT frames on the --listen address and decodes them without initiating any PLC communication. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.
+Listens for raw TPKT frames on the --listen address and decodes them without initiating any PLC communication. The default 127.0.0.1:15102 accepts local clients only; --listen :PORT listens on every interface, without authentication. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.
 
 | Flag | Type | Meaning |
 |---|---|---|
 | `--format` | string | Output format: text, jsonl [env: S7COMMCTL_FORMAT] (default "text") |
-| `--listen` | string | Listen address for passive frame feed [env: S7COMMCTL_SNIFF_LISTEN] (default ":15102") |
+| `--listen` | string | Listen address for passive frame feed [env: S7COMMCTL_SNIFF_LISTEN] (default "127.0.0.1:15102") |
 | `--max-frames` | int | Stop after this many frames (0 = unlimited) [env: S7COMMCTL_MAX_FRAMES] |
 
 ## `s7commctl version`
@@ -462,7 +463,7 @@ Write data to an S7 device
 |---|---|---|
 | `--area` | string | Memory area (DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200) [env: S7COMMCTL_AREA] (default "DB") |
 | `--auto-rack-slot` | bool | Auto-detect rack/slot [env: S7COMMCTL_AUTO_RACK_SLOT] |
-| `--bit` | int | Bit 0-7 of the byte at --offset: with --type bool, write only that bit |
+| `--bit` | int | Bit 0-7 of the byte at --offset: the one bit --type bool writes (required with --type bool) |
 | `--brute-rack-slot` | bool | Brute rack 0-3 and slot 0-5 [env: S7COMMCTL_BRUTE_RACK_SLOT] |
 | `--dangerous` | bool | Confirm write operation |
 | `--db` | int | Data block number [env: S7COMMCTL_DB] (default 1) |

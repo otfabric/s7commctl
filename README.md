@@ -84,7 +84,7 @@ Current status:
 	- Discovery workflow with TCP/102 probing, rack/slot probing, negotiated PDU/TSAP reporting
 	- Identify command using SZL-backed device metadata (CPU/order/module/firmware where exposed)
 	- Read for DB, I, Q, M, T, C and extended areas (DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200)
-	- Typed reads of BOOL, INT, DINT, REAL, STRING; typed writes of INT, DINT, REAL, STRING (current length and characters) and BOOL (one bit with `--bit`, otherwise the whole byte)
+	- Typed reads of BOOL, INT, DINT, REAL, STRING; typed writes of INT, DINT, REAL, STRING (current length and characters, within the STRING's declared maximum) and BOOL (one bit, `--bit` required)
 	- Write safety model: explicit `--dangerous`, a confirmation prompt that names the target and the value, optional `--force`
 	- Block management: list, DB listing, block info, block upload (OB/DB/FB/FC/SFB/SFC support path)
 	- Diagnostics: CPU state, protection level, diagnostic buffer
@@ -345,8 +345,8 @@ s7commctl write --ip 192.168.1.10 --area DB --db 1 --offset 0 --type int --value
 ```
 
 - `--type bool --bit N` (N 0-7) writes one bit, the bit address offset·8+N: `--area Q --offset 0 --bit 3` sets `Q0.3` and leaves the other seven bits of `QB0` unchanged. The success line names the bit (`DB1.DBX4.3`, `Q0.3`).
-- `--type bool` without `--bit` writes the whole byte at `--offset` (`0x01` or `0x00`, so the other seven bits become 0) and prints a warning on stderr that names `--bit`.
-- `--type string` writes an S7 STRING's current length (byte 1) and its characters from `--offset`+1, and leaves byte 0, the maximum length the PLC program declares, unchanged. The CLI does not read that maximum: a value longer than the STRING overwrites the bytes after it. A value longer than 254 octets is cut to 254.
+- `--type bool` without `--bit` is a usage error (exit 2) before the prompt and before connecting. To write a whole byte, use `--type raw` with one octet (`--value 01`); there is no `--type byte`.
+- `--type string` first reads byte 0 of the STRING at `--offset`, the maximum length the PLC program declares, then writes the current length (byte 1) and the characters from `--offset`+1 and leaves byte 0 unchanged. A value longer than that maximum is refused with exit 2 and nothing is written; a value longer than 254 octets (an S7 STRING's limit) is refused with exit 2 before the prompt and before connecting. When byte 0 cannot be read, the write stops with that error and its exit code (4 when the connection is lost, 6 when the PLC refuses the read) and nothing is written.
 - Byte writes are labelled as bytes in the success line: `DB1.DBB0`, `MB100`, `QB4`.
 
 Non-interactive (automation):
@@ -405,12 +405,14 @@ Hex-line output mode:
 s7commctl record --ip 192.168.1.10 --area M --offset 100 --size 4 --format hex --output samples.hex
 ```
 
+A sample fails when its status is not `success`; its line is written like any other. The summary reads `Recorded N samples (M failed) to <file>`, and the command exits 1 when a sample failed. Nothing reconnects: after `--max-failures` consecutive samples that failed with `transport-error` or `timeout` (default 5; `0` never stops), `record` stops, prints the summary, says on stderr that the connection was lost and exits 4 (transport) or 5 (timeout), the code of the last sample. An interrupt (Ctrl-C) ends it with 0 and no summary.
+
 ### 14. Passive sniff decode
 
-Listen for raw TPKT streams on the `--listen` address and decode frames (single-client mode: the first client that connects, one connection). The default `:15102` listens on every interface without authentication; `--listen 127.0.0.1:15102` accepts local clients only. See [SECURITY.md](SECURITY.md#listeners).
+Listen for raw TPKT streams on the `--listen` address and decode frames (single-client mode: the first client that connects, one connection). The default `127.0.0.1:15102` accepts local clients only; `--listen :15102` listens on every interface, without authentication, for a feed from another host. See [SECURITY.md](SECURITY.md#listeners).
 
 ```bash
-s7commctl sniff --listen :15102 --format jsonl
+s7commctl sniff --format jsonl
 ```
 
 ### 15. Offline pcap decode
@@ -423,10 +425,10 @@ s7commctl pcap-decode --file capture.pcap --port 102 --format text
 
 ### 16. Replay server scaffold
 
-Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line). Single-client mode: the first client that connects, one TCP connection; one response per scripted line until the connection closes. The default `:1102` listens on every interface without authentication; `--listen 127.0.0.1:1102` accepts local clients only. An interrupt during `--delay-ms` ends the command at once with exit 130.
+Run a deterministic replay endpoint with scripted response frames (hex TPKT, one per line). Single-client mode: the first client that connects, one TCP connection; one response per scripted line until the connection closes. The default `127.0.0.1:1102` accepts local clients only; `--listen :1102` listens on every interface, without authentication, for a client on another host. An interrupt during `--delay-ms` ends the command at once with exit 130.
 
 ```bash
-s7commctl replay --listen :1102 --script replay.hex --format jsonl
+s7commctl replay --script replay.hex --format jsonl
 ```
 
 ## Reaching the PLC: proxy and source address
@@ -477,9 +479,10 @@ s7commctl identify
 - Read operations are default-safe
 - Write operations require `--dangerous`
 - Interactive confirmation is required unless `--force` is set; the prompt names the target, the address and the value
-- `--type bool` writes one bit only with `--bit`; without it the whole byte is written, with a warning on stderr
+- `--type bool` writes one bit and requires `--bit`; `--type string` reads the STRING's declared maximum first and refuses a longer value
 - Text the PLC supplies (CPU type, order number, module name, firmware) is printed with non-printable characters escaped as `\xNN` in text, table and `--quiet` output, so the output shows them rather than passing them on; JSON escapes them as JSON does
 - `fingerprint` and `diagnostic` report a protection level they could not read as unknown (`null` in JSON, with `protection_error`), never as "No Protection"
+- `sniff` and `replay` listen on 127.0.0.1 unless `--listen` names another address
 - Limits and the `sniff`/`replay` listeners: [SECURITY.md](SECURITY.md)
 
 Always validate addressing and scope in a non-production or controlled maintenance window before performing writes.

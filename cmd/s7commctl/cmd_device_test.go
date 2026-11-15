@@ -389,57 +389,113 @@ func TestWrite_BitValidation(t *testing.T) {
 	}
 }
 
-// TestWrite_BoolWithoutBitWritesTheByte: without --bit, --type bool writes the
-// whole byte as before, says so on stderr and labels the address as a byte.
-func TestWrite_BoolWithoutBitWritesTheByte(t *testing.T) {
-	p := newFakePLC(t)
-	r := runCLI(t, p.args("write", "--offset", "4", "--type", "bool", "--value", "true", "--dangerous", "--force")...).ok(t).
-		has(t, "Successfully wrote 1 bytes to DB1.DBB4\n")
-	if !strings.Contains(r.stderr, "writes the whole byte DB1.DBB4") || !strings.Contains(r.stderr, "--bit") {
-		t.Errorf("stderr = %q, want the whole-byte warning naming --bit", r.stderr)
+// TestWrite_BoolRequiresBit: --type bool without --bit is a usage error before
+// the prompt and before connecting; --type raw writes a whole byte.
+func TestWrite_BoolRequiresBit(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		flags []string
+	}{
+		{"forced", []string{"--force"}},
+		{"at the prompt", nil},
+		{"an invalid value too", []string{"--force", "--value", "maybe"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			withStdin(t, "yes\n")
+			args := append(p.args("write", "--offset", "4", "--type", "bool", "--value", "true", "--dangerous"), tc.flags...)
+			r := runCLI(t, args...)
+			r.wantUsage(t, "--type bool requires --bit 0-7")
+			if strings.Contains(r.stderr, "Type 'yes'") {
+				t.Errorf("prompted before refusing: %q", r.stderr)
+			}
+			if n := p.dialCount(); n != 0 {
+				t.Fatalf("connected %d times, want 0", n)
+			}
+		})
 	}
-	w := p.recordedWrites()
-	if len(w) != 1 || w[0].transport != 0x02 || w[0].start != 4 || !bytes.Equal(w[0].data, []byte{1}) {
+
+	p := newFakePLC(t)
+	runCLI(t, p.args("write", "--offset", "4", "--type", "raw", "--value", "01", "--dangerous", "--force")...).ok(t).
+		has(t, "Successfully wrote 1 bytes to DB1.DBB4\n")
+	if w := p.recordedWrites(); len(w) != 1 || w[0].transport != 0x02 || w[0].start != 4 || !bytes.Equal(w[0].data, []byte{1}) {
 		t.Fatalf("writes = %+v, want one byte 01 at 4", w)
 	}
 }
 
+// memoryPLC is a fake PLC whose reads come from mem; its writes are recorded,
+// and applyWrites puts them into mem.
+func memoryPLC(t *testing.T, mem []byte) *fakePLC {
+	t.Helper()
+	p := newFakePLC(t)
+	p.read = func(_ byte, _, start, size int) fakeReply {
+		return fakeReply{data: append([]byte(nil), mem[start:start+size]...)}
+	}
+	return p
+}
+
+func applyWrites(p *fakePLC, mem []byte) {
+	for _, w := range p.recordedWrites() {
+		copy(mem[w.start:], w.data)
+	}
+}
+
 // TestWrite_StringKeepsTheMaximumLength: byte 0 of an S7 STRING, its declared
-// maximum, is left as it is; the write starts at byte 1 with the current
-// length.
+// maximum, is read and left as it is; a value that fits is written from byte
+// 1 with the current length. A value longer than the maximum is refused and
+// nothing is written.
 func TestWrite_StringKeepsTheMaximumLength(t *testing.T) {
 	for _, tc := range []struct {
-		name, value string
-		want        []byte
+		name string
+		max  byte
+		n    int
+		fits bool
 	}{
-		{"abc", "abc", []byte{3, 'a', 'b', 'c'}},
-		{"empty", "", []byte{0}},
-		{"254 characters", strings.Repeat("x", 254), append([]byte{254}, strings.Repeat("x", 254)...)},
+		{"empty", 20, 0, true},
+		{"1", 20, 1, true},
+		{"maximum - 1", 20, 19, true},
+		{"maximum", 20, 20, true},
+		{"maximum + 1", 20, 21, false},
+		{"maximum 0, empty", 0, 0, true},
+		{"maximum 0, 1", 0, 1, false},
+		{"maximum 1, 2", 1, 2, false},
+		{"254 of 254", 254, 254, true},
+		{"254 of 253", 253, 254, false},
+		{"254 of byte 0 = 255", 255, 254, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newFakePLC(t)
-			// DB1 holds a STRING[20] at offset 4: maximum 20, empty.
+			// DB1 holds a STRING at offset 4 with maximum tc.max, empty.
 			mem := make([]byte, 300)
-			mem[4] = 20
-			r := runCLI(t, p.args("write", "--offset", "4", "--type", "string", "--value", tc.value, "--dangerous", "--force")...).ok(t)
-			for _, w := range p.recordedWrites() {
-				copy(mem[w.start:], w.data)
+			mem[4] = tc.max
+			p := memoryPLC(t, mem)
+			value := strings.Repeat("x", tc.n)
+			r := runCLI(t, p.args("write", "--offset", "4", "--type", "string", "--value", value, "--dangerous", "--force")...)
+			if !tc.fits {
+				r.wantUsage(t, fmt.Sprintf("the value has %d octets and the STRING at DB1.DBB4 holds at most %d", tc.n, tc.max))
+				if w := p.recordedWrites(); len(w) != 0 {
+					t.Fatalf("PLC received a write: %+v", w)
+				}
+				return
 			}
-			if mem[4] != 20 {
-				t.Fatalf("the maximum length is now %d, want 20", mem[4])
+			r.ok(t).has(t, fmt.Sprintf("Successfully wrote %d bytes to DB1.DBB5 (current length and characters of the STRING at DB1.DBB4)\n", tc.n+1))
+			applyWrites(p, mem)
+			if mem[4] != tc.max {
+				t.Fatalf("the maximum length is now %d, want %d", mem[4], tc.max)
 			}
-			if got := mem[5 : 5+len(tc.want)]; !bytes.Equal(got, tc.want) {
-				t.Fatalf("bytes 5.. = % X, want % X", got, tc.want)
+			want := append([]byte{byte(tc.n)}, value...)
+			if got := mem[5 : 5+len(want)]; !bytes.Equal(got, want) {
+				t.Fatalf("bytes 5.. = % X, want % X", got, want)
 			}
 			// The PLC's PDU of 240 octets splits a long value; nothing is written below offset 5.
 			if w := p.recordedWrites(); len(w) == 0 || w[0].start != 5 {
 				t.Fatalf("writes = %+v, want the first at offset 5", w)
 			}
-			r.has(t, fmt.Sprintf("Successfully wrote %d bytes to DB1.DBB5 (current length and characters of the STRING at DB1.DBB4)\n", len(tc.want)))
 		})
 	}
 
-	p := newFakePLC(t)
+	mem := make([]byte, 300)
+	mem[4] = 20
+	p := memoryPLC(t, mem)
 	runCLI(t, p.args("write", "--offset", "-1", "--type", "string", "--value", "abc", "--dangerous", "--force")...).wantUsage(t, "write failed")
 	if w := p.recordedWrites(); len(w) != 0 {
 		t.Fatalf("PLC received a write: %+v", w)
@@ -448,6 +504,60 @@ func TestWrite_StringKeepsTheMaximumLength(t *testing.T) {
 		ok(t).jsonOut(t)
 	wantField(t, m, float64(4), "result", "written")
 	wantField(t, m, float64(4), "request", "offset")
+}
+
+// TestWrite_StringOver254IsRefused: a value of more than 254 octets is a
+// usage error before the prompt and before connecting.
+func TestWrite_StringOver254IsRefused(t *testing.T) {
+	for _, n := range []int{255, 256, 300} {
+		for _, force := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%d, force %v", n, force), func(t *testing.T) {
+				mem := make([]byte, 300)
+				mem[4] = 255
+				p := memoryPLC(t, mem)
+				withStdin(t, "yes\n")
+				args := p.args("write", "--offset", "4", "--type", "string", "--value", strings.Repeat("x", n), "--dangerous")
+				if force {
+					args = append(args, "--force")
+				}
+				r := runCLI(t, args...)
+				r.wantUsage(t, fmt.Sprintf("the value has %d octets; an S7 STRING holds at most 254", n))
+				if strings.Contains(r.stderr, "Type 'yes'") {
+					t.Errorf("prompted before refusing: %q", r.stderr)
+				}
+				if c := p.dialCount(); c != 0 {
+					t.Fatalf("connected %d times, want 0", c)
+				}
+			})
+		}
+	}
+}
+
+// TestWrite_StringMaximumReadFails: when byte 0 cannot be read, the write
+// stops with the read's error and nothing is written.
+func TestWrite_StringMaximumReadFails(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		reply fakeReply
+		code  int
+	}{
+		{"refused by the PLC", fakeReply{ret: 0x0A}, codeProtocol},
+		{"no data", fakeReply{data: []byte{}}, codeProtocol},
+		{"connection closed", fakeReply{hangUp: true}, codeTransport},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.read = func(byte, int, int, int) fakeReply { return tc.reply }
+			args := p.args("write", "--offset", "4", "--type", "string", "--value", "abc", "--dangerous", "--force")
+			r := runCLI(t, args...).wantFailure(t, "write failed: read the maximum length of the STRING at DB1.DBB4")
+			if code := exitCodeOf(t, r.err); code != tc.code {
+				t.Errorf("exit code %d, want %d (error: %v)", code, tc.code, r.err)
+			}
+			if w := p.recordedWrites(); len(w) != 0 {
+				t.Fatalf("PLC received a write: %+v", w)
+			}
+		})
+	}
 }
 
 func TestFormatBitAddress(t *testing.T) {
@@ -993,7 +1103,7 @@ func TestRecord_WritesSamples(t *testing.T) {
 			p := newFakePLC(t)
 			out := filepath.Join(t.TempDir(), "rec")
 			runCLI(t, p.args("record", "--size", "2", "--type", "int", "--every-ms", "1", "--count", "2",
-				"--format", tc.format, "--output", out)...).ok(t).has(t, "Recorded 2 samples to "+out)
+				"--format", tc.format, "--output", out)...).ok(t).has(t, "Recorded 2 samples (0 failed) to "+out+"\n")
 			b, err := os.ReadFile(out)
 			if err != nil {
 				t.Fatal(err)
@@ -1008,6 +1118,95 @@ func TestRecord_WritesSamples(t *testing.T) {
 				t.Fatalf("got %d lines, want 2:\n%s", len(lines), b)
 			}
 			tc.check(t, lines)
+		})
+	}
+}
+
+// recordLines returns the lines of a record output file.
+func recordLines(t *testing.T, out string) []string {
+	t.Helper()
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(strings.ReplaceAll(string(b), "\r\n", "\n")), "\n")
+}
+
+// TestRecord_ConnectionLost: the PLC closes the connection after one sample.
+// Every later sample fails with a transport error; after --max-failures of
+// them in a row (default 5) record stops with exit 4 and says the connection
+// was lost. --max-failures 0 never stops, and the failures give exit 1.
+func TestRecord_ConnectionLost(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		flags   []string
+		samples int
+		stopped bool
+	}{
+		{"default", nil, 6, true},
+		{"max-failures 1", []string{"--max-failures", "1"}, 2, true},
+		{"max-failures 3", []string{"--max-failures", "3"}, 4, true},
+		{"max-failures 0", []string{"--max-failures", "0"}, 12, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.dropAfterReads = 1
+			out := filepath.Join(t.TempDir(), "rec")
+			args := append(p.args("record", "--every-ms", "1", "--count", "12", "--output", out), tc.flags...)
+			r := runCLI(t, args...)
+			failed := tc.samples - 1
+			r.has(t, fmt.Sprintf("Recorded %d samples (%d failed) to %s\n", tc.samples, failed, out))
+			if tc.stopped {
+				r.wantCode(t, fmt.Sprintf("the connection to 127.0.0.1 was lost (%d consecutive samples failed; the last: transport-error", failed),
+					func(code int) bool { return code == codeTransport }, "4 (transport)")
+			} else {
+				r.wantFindings(t, fmt.Sprintf("%d of %d samples failed; the last: transport-error", failed, tc.samples))
+			}
+			lines := recordLines(t, out)
+			if len(lines) != tc.samples {
+				t.Fatalf("got %d lines, want %d", len(lines), tc.samples)
+			}
+			for i, line := range lines {
+				want := `"status":"transport-error"`
+				if i == 0 {
+					want = `"status":"success"`
+				}
+				if !strings.Contains(line, want) {
+					t.Errorf("line %d = %q, want %s", i, line, want)
+				}
+			}
+		})
+	}
+}
+
+// TestRecord_FailedSamplesAreCounted: a sample the PLC refuses is a failed
+// sample (exit 1 at the end) but no lost connection: record goes on.
+func TestRecord_FailedSamplesAreCounted(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		refuse  func(n int32) bool
+		samples int
+		failed  int
+	}{
+		{"one of three", func(n int32) bool { return n == 2 }, 3, 1},
+		{"all, more than --max-failures", func(int32) bool { return true }, 7, 7},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			var reads atomic.Int32
+			p.read = func(_ byte, _, start, size int) fakeReply {
+				if tc.refuse(reads.Add(1)) {
+					return fakeReply{ret: 0x0A}
+				}
+				return fakeReply{data: patternBytes(start, size)}
+			}
+			out := filepath.Join(t.TempDir(), "rec")
+			r := runCLI(t, p.args("record", "--every-ms", "1", "--count", fmt.Sprint(tc.samples), "--output", out)...)
+			r.has(t, fmt.Sprintf("Recorded %d samples (%d failed) to %s\n", tc.samples, tc.failed, out))
+			r.wantFindings(t, fmt.Sprintf("%d of %d samples failed; the last: rejected", tc.failed, tc.samples))
+			if n := len(recordLines(t, out)); n != tc.samples {
+				t.Fatalf("got %d lines, want %d", n, tc.samples)
+			}
 		})
 	}
 }
@@ -1064,6 +1263,10 @@ func TestRecord_Failures(t *testing.T) {
 	p := newFakePLC(t)
 	out := filepath.Join(t.TempDir(), "rec")
 	base := func(extra ...string) []string { return append(p.args("record", "--output", out), extra...) }
+	runCLI(t, base("--max-failures", "-1")...).wantUsage(t, "max-failures must be >= 0")
+	if n := p.dialCount(); n != 0 {
+		t.Fatalf("connected %d times before refusing --max-failures -1", n)
+	}
 	runCLI(t, base("--size", "0")...).wantUsage(t, "size must be > 0")
 	runCLI(t, base("--every-ms", "0")...).wantUsage(t, "every-ms must be > 0")
 	runCLI(t, base("--area", "Z")...).wantUsage(t, "unknown area")

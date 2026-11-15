@@ -198,6 +198,38 @@ func TestSniff_InvalidFrameIsAFailure(t *testing.T) {
 	wait().wantFailure(t, "tpkt: invalid version 4")
 }
 
+// TestSniffAndReplay_ListenOnLoopbackByDefault: without --listen, sniff and
+// replay listen on a loopback address, so only local clients can connect.
+func TestSniffAndReplay_ListenOnLoopbackByDefault(t *testing.T) {
+	for _, tc := range []struct{ command, want string }{
+		{"sniff", "127.0.0.1:15102"},
+		{"replay", "127.0.0.1:1102"},
+	} {
+		t.Run(tc.command, func(t *testing.T) {
+			c, _, err := rootCmd.Find([]string{tc.command})
+			if err != nil {
+				t.Fatal(err)
+			}
+			f := c.Flags().Lookup("listen")
+			if f == nil {
+				t.Fatal("no --listen flag")
+			}
+			if f.DefValue != tc.want {
+				t.Fatalf("default --listen = %q, want %q", f.DefValue, tc.want)
+			}
+			host, _, err := net.SplitHostPort(f.DefValue)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+				t.Fatalf("default --listen host %q is not a loopback address", host)
+			}
+			runCLI(t, tc.command, "--help").ok(t).
+				has(t, "The default "+tc.want+" accepts local clients only; --listen :PORT listens on every interface")
+		})
+	}
+}
+
 func TestSniffAndReplay_ListenFailure(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

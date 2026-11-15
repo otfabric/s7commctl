@@ -35,8 +35,9 @@ type fakeWrite struct {
 
 // fakeReply is the outcome of a Read Var, an SZL read or a Write Var.
 type fakeReply struct {
-	ret  byte // item return code; 0 means wire.RetCodeSuccess
-	data []byte
+	ret    byte // item return code; 0 means wire.RetCodeSuccess
+	data   []byte
+	hangUp bool // a Read Var: close the connection instead of answering
 }
 
 // fakePLC is an in-process S7 server on a loopback socket. go-s7comm keeps its
@@ -53,11 +54,15 @@ type fakePLC struct {
 	szl      func(id, index uint16) fakeReply
 	writeRet byte
 	upload   [][]byte // chunks of the block; nil refuses the upload
+	// dropAfterReads closes the connection once it has answered this many
+	// Read Var requests (0: never), as a PLC that goes away does.
+	dropAfterReads int
 
 	mu     sync.Mutex
 	conns  map[net.Conn]struct{}
 	writes []fakeWrite
 	dials  int
+	reads  int
 }
 
 // newFakePLC starts a fake PLC that is stopped when the test ends.
@@ -94,6 +99,13 @@ func (p *fakePLC) recordedWrites() []fakeWrite {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]fakeWrite(nil), p.writes...)
+}
+
+// dialCount is the number of TCP connections the PLC accepted.
+func (p *fakePLC) dialCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.dials
 }
 
 func (p *fakePLC) acceptLoop() {
@@ -165,7 +177,9 @@ func (p *fakePLC) serve(conn net.Conn) {
 			binary.BigEndian.PutUint16(setup[6:8], 240)
 			resp = ackData(h.PDURef, 0, 0, setup, nil)
 		case param[0] == wire.FuncReadVar:
-			resp = p.handleRead(h.PDURef, param)
+			if resp = p.handleRead(h.PDURef, param); resp == nil {
+				return
+			}
 		case param[0] == wire.FuncWriteVar:
 			resp = p.handleWrite(h.PDURef, param, data)
 		case param[0] == wire.FuncUploadStart:
@@ -193,6 +207,15 @@ func (p *fakePLC) serve(conn net.Conn) {
 		if err := writeTPKT(conn, append([]byte{0x02, 0xF0, 0x80}, resp...)); err != nil {
 			return
 		}
+		if p.dropAfterReads > 0 && !h.ROSCTR.IsUserdata() && param[0] == wire.FuncReadVar {
+			p.mu.Lock()
+			p.reads++
+			drop := p.reads >= p.dropAfterReads
+			p.mu.Unlock()
+			if drop {
+				return
+			}
+		}
 	}
 }
 
@@ -201,6 +224,9 @@ func (p *fakePLC) handleRead(ref uint16, param []byte) []byte {
 	reply := fakeReply{data: patternBytes(start, size)}
 	if p.read != nil {
 		reply = p.read(area, db, start, size)
+	}
+	if reply.hangUp {
+		return nil
 	}
 	if reply.ret != 0 && reply.ret != wire.RetCodeSuccess {
 		return ackData(ref, 0, 0, []byte{wire.FuncReadVar, 1}, []byte{reply.ret, 0, 0, 0})

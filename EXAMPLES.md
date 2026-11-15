@@ -491,7 +491,7 @@ Rack  Slot  Status         Returned  SameAsBaseline  Error
 
 ## Record (periodic reads to file)
 
-Read-only; samples are written to a local file. Stop with Ctrl+C or use `--count`.
+Read-only; samples are written to a local file. Stop with Ctrl+C or use `--count`. The summary counts failed samples (`Recorded 5 samples (0 failed) to samples.jsonl`); a failed sample makes the exit code 1, and `--max-failures` consecutive transport errors or timeouts (default 5) stop the run with 4 or 5: the connection is lost.
 
 ```bash
 s7commctl record --ip 192.168.0.1 --rack 0 --slot 0 --area DB --db 1 --offset 0 --size 8 --every-ms 1000 --count 5 --output samples.jsonl
@@ -505,7 +505,8 @@ s7commctl record --ip 192.168.0.1 --rack 0 --slot 0 --area M --offset 100 --size
 **Sniff** — passive decode on a TCP stream (no PLC write):
 
 ```bash
-s7commctl sniff --listen :15102 --format jsonl
+s7commctl sniff --format jsonl                  # 127.0.0.1:15102, local clients only
+s7commctl sniff --listen :15102 --format jsonl  # every interface, without authentication
 ```
 
 **pcap-decode** — offline decode (no network):
@@ -517,7 +518,7 @@ s7commctl pcap-decode --file capture.pcap --port 102 --format text
 **Replay** — scripted responses (no PLC):
 
 ```bash
-s7commctl replay --listen :1102 --script replay.hex --format jsonl
+s7commctl replay --script replay.hex --format jsonl   # 127.0.0.1:1102, local clients only
 ```
 
 ---

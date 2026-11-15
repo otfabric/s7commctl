@@ -4,6 +4,7 @@ package s7commctl
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,9 +62,6 @@ func runWrite(cmd *cobra.Command, args []string) error {
 		return ExitUsage(err)
 	}
 
-	if plan.wholeByte {
-		_, _ = fmt.Fprintf(os.Stderr, "WARNING: --type bool without --bit writes the whole byte %s (all eight bits); --bit 0-7 writes one bit\n", plan.address)
-	}
 	if !writeConfig.Force {
 		if !confirmWrite(os.Stdin, writePrompt(writeConfig, area, plan)) {
 			return ExitUsage(fmt.Errorf("write aborted by user"))
@@ -77,6 +75,11 @@ func runWrite(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { _ = c.Close() }()
 
+	if plan.str {
+		if err := checkStringFits(cmd.Context(), c, area, writeConfig, len(plan.data)-1); err != nil {
+			return err
+		}
+	}
 	if plan.bit >= 0 {
 		err = c.WriteBit(cmd.Context(), model.BitAddress{
 			Area:       area,
@@ -139,16 +142,20 @@ func runWrite(cmd *cobra.Command, args []string) error {
 // maxValuePreview is how much of --value the JSON request and the prompt show.
 const maxValuePreview = 128
 
+// maxStringChars is the most characters an S7 STRING holds: its length bytes
+// are one octet each, and 255 is not a valid maximum.
+const maxStringChars = 254
+
 // writePlan is what write sends: the octets of data from byte start, or, with
 // bit 0-7, that one bit of byte start.
 type writePlan struct {
-	start     int
-	data      []byte
-	bit       int // -1 for a byte write
-	bitValue  bool
-	address   string // the address written, as output names it
-	note      string // what the octets are, when that is not plain
-	wholeByte bool   // --type bool without --bit: the whole byte
+	start    int
+	data     []byte
+	bit      int // -1 for a byte write
+	bitValue bool
+	address  string // the address written, as output names it
+	note     string // what the octets are, when that is not plain
+	str      bool   // --type string: the STRING's declared maximum is read first
 }
 
 // size is the number of octets written, 1 for a bit write.
@@ -188,27 +195,54 @@ func planWrite(cfg config.WriteConfig, area model.Area, bitSet bool) (writePlan,
 			address:  formatBitAddress(area, cfg.DBNumber, cfg.Offset, cfg.Bit),
 		}, nil
 	}
+	switch typ {
+	case "bool":
+		return writePlan{}, fmt.Errorf("--type bool requires --bit 0-7, the bit of the byte at --offset to write; --type raw writes a whole byte")
+	case "string":
+		if n := len(cfg.Value); n > maxStringChars {
+			return writePlan{}, fmt.Errorf("the value has %d octets; an S7 STRING holds at most %d", n, maxStringChars)
+		}
+	}
 
 	data, err := validate.ParseTypedValue(cfg.Value, cfg.Type)
 	if err != nil {
 		return writePlan{}, fmt.Errorf("invalid value: %w", err)
 	}
 	plan := writePlan{start: cfg.Offset, data: data, bit: -1}
-	switch typ {
-	case "string":
+	if typ == "string" {
 		// Byte 0 of an S7 STRING is its maximum length, which the PLC program
-		// declares. The write leaves it and writes the current length (byte 1)
-		// and the characters. A negative offset is left for the client to refuse.
+		// declares. The write reads it, leaves it and writes the current length
+		// (byte 1) and the characters. A negative offset is left for the client
+		// to refuse.
 		if cfg.Offset >= 0 {
 			plan.start = cfg.Offset + 1
 		}
 		plan.data = data[1:]
 		plan.note = "current length and characters of the STRING at " + formatWriteAddress(area, cfg.DBNumber, cfg.Offset)
-	case "bool":
-		plan.wholeByte = true
+		plan.str = true
 	}
 	plan.address = formatWriteAddress(area, cfg.DBNumber, plan.start)
 	return plan, nil
+}
+
+// checkStringFits reads byte 0 of the STRING at cfg.Offset, the maximum length
+// the PLC program declares, and refuses a value of n octets that is longer.
+// A read that fails stops the write with its error.
+func checkStringFits(ctx context.Context, c *client.Client, area model.Area, cfg config.WriteConfig, n int) error {
+	at := formatWriteAddress(area, cfg.DBNumber, cfg.Offset)
+	res, err := c.ReadArea(ctx, model.Address{Area: area, DBNumber: cfg.DBNumber, Start: cfg.Offset, Size: 1})
+	code := codeProtocol
+	if err == nil {
+		code = readStatusCode(res.Status)
+		err = res.Err()
+	}
+	if err != nil {
+		return &ExitError{Code: classify(err, code), Err: fmt.Errorf("write failed: read the maximum length of the STRING at %s: %w", at, err)}
+	}
+	if limit := int(res.Data[0]); n > limit {
+		return ExitUsage(fmt.Errorf("the value has %d octets and the STRING at %s holds at most %d (its byte 0); nothing was written", n, at, limit))
+	}
+	return nil
 }
 
 // formatWriteAddress returns the address of the byte at offset (e.g. DB1.DBB0,
