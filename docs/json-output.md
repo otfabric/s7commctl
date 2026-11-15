@@ -51,7 +51,7 @@ Other failures print a message on stderr and nothing on stdout. Exception: once 
 
 `request`: connection fields, `area`, `db`, `offset` (as given), `bit` (only with `--bit`), `value` (the first 128 characters, followed by `...` and then `value_truncated: true`).
 
-`result`: `ok` (true), `written`: the octets written, or 1 for a bit write (`--type bool --bit N`). For `--type string` they are the STRING's current-length byte and its characters, written from `offset`+1, so `written` is the value's length plus one; byte 0, the STRING's maximum length, is not written.
+`result`: `ok` (true), `written`: the octets written, or 1 for a bit write (`--type bool --bit N`). For `--type string` they are the STRING's current-length byte and its characters, written from `offset`+1, so `written` is the value's length plus one; byte 0, the STRING's maximum length, is read before the write and not written. A value longer than that maximum or than 254 octets is refused (exit 2) and nothing is printed on stdout.
 
 ### `identify`
 

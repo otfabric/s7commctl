@@ -180,7 +180,7 @@ type WriteConfig struct {
 	Offset    int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
 	Value     string `flag:"value" desc:"Value to write"`
 	Type      string `flag:"type" desc:"Data type"`
-	Bit       int    `flag:"bit" desc:"Bit 0-7 of the byte at --offset: with --type bool, write only that bit"`
+	Bit       int    `flag:"bit" desc:"Bit 0-7 of the byte at --offset: the one bit --type bool writes (required with --type bool)"`
 	Format    string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: text, json"`
 	Dangerous bool   `flag:"dangerous" desc:"Confirm write operation"`
 	Force     bool   `flag:"force" desc:"Skip confirmation"`

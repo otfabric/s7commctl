@@ -22,7 +22,7 @@ type sniffConfig struct {
 }
 
 var snfConfig = sniffConfig{
-	Listen:   ":15102",
+	Listen:   "127.0.0.1:15102",
 	Format:   "text",
 	MaxFrame: 0,
 }
@@ -30,7 +30,7 @@ var snfConfig = sniffConfig{
 var sniffCmd = &cobra.Command{
 	Use:   "sniff",
 	Short: "Passive S7 frame decoder over TCP stream input",
-	Long:  "Listens for raw TPKT frames on the --listen address and decodes them without initiating any PLC communication. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.",
+	Long:  "Listens for raw TPKT frames on the --listen address and decodes them without initiating any PLC communication. The default 127.0.0.1:15102 accepts local clients only; --listen :PORT listens on every interface, without authentication. Single-client mode: accepts one TCP connection, then decodes frames until the connection closes.",
 	RunE:  runSniff,
 }
 

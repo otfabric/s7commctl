@@ -30,6 +30,8 @@ type recordConfig struct {
 	Count    int    `flag:"count" env:"S7COMMCTL_COUNT" desc:"Number of samples (0 = run until interrupted)"`
 	Output   string `flag:"output" env:"S7COMMCTL_OUTPUT" desc:"Output file path"`
 	Format   string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: jsonl, hex"`
+
+	MaxFailures int `flag:"max-failures" env:"S7COMMCTL_MAX_FAILURES" desc:"Stop after this many consecutive samples fail with a transport error or timeout (0 = never stop)"`
 }
 
 var recConfig = recordConfig{
@@ -43,6 +45,7 @@ var recConfig = recordConfig{
 	Count:        0,
 	Output:       "record.jsonl",
 	Format:       "jsonl",
+	MaxFailures:  5,
 }
 
 var recordCmd = &cobra.Command{
@@ -73,6 +76,9 @@ func runRecord(cmd *cobra.Command, args []string) error {
 	if recConfig.EveryMS <= 0 {
 		return ExitUsage(fmt.Errorf("every-ms must be > 0"))
 	}
+	if recConfig.MaxFailures < 0 {
+		return ExitUsage(fmt.Errorf("max-failures must be >= 0"))
+	}
 
 	area, err := validate.ValidateArea(recConfig.Area)
 	if err != nil {
@@ -101,7 +107,11 @@ func runRecord(cmd *cobra.Command, args []string) error {
 	ticker := time.NewTicker(time.Duration(recConfig.EveryMS) * time.Millisecond)
 	defer ticker.Stop()
 
-	samples := 0
+	// A sample fails when its status is not success. Consecutive failures with a
+	// transport error or timeout mean the connection is lost: nothing
+	// reconnects, so --max-failures of them end the run.
+	samples, failed, lost := 0, 0, 0
+	var last *client.ReadResult
 	for recConfig.Count == 0 || samples < recConfig.Count {
 		select {
 		case <-cmd.Context().Done():
@@ -115,11 +125,42 @@ func runRecord(cmd *cobra.Command, args []string) error {
 				return ExitRuntime(fmt.Errorf("write sample failed: %w", err))
 			}
 			samples++
+			if cmd.Context().Err() != nil {
+				return nil // interrupted: the sample in flight is no failure
+			}
+			if result.OK() {
+				lost = 0
+				continue
+			}
+			failed++
+			last = result
+			if result.Status != client.ReadStatusTransportErr && result.Status != client.ReadStatusTimeout {
+				lost = 0
+				continue
+			}
+			lost++
+			if recConfig.MaxFailures > 0 && lost >= recConfig.MaxFailures {
+				printRecordSummary(samples, failed)
+				return &ExitError{Code: readStatusCode(result.Status), Err: fmt.Errorf("record stopped: the connection to %s was lost (%d consecutive samples failed; the last: %s)",
+					recConfig.IP, lost, sampleOutcome(result))}
+			}
 		}
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "Recorded %d samples to %s\n", samples, recConfig.Output)
+	printRecordSummary(samples, failed)
+	if failed > 0 {
+		return ExitOperation(fmt.Errorf("%d of %d samples failed; the last: %s", failed, samples, sampleOutcome(last)))
+	}
 	return nil
+}
+
+func printRecordSummary(samples, failed int) {
+	_, _ = fmt.Fprintf(os.Stdout, "Recorded %d samples (%d failed) to %s\n", samples, failed, recConfig.Output)
+}
+
+// sampleOutcome is the status of a failed sample and what went wrong.
+func sampleOutcome(r *client.ReadResult) string {
+	return fmt.Sprintf("%s (%v)", r.Status, r.Err())
 }
 
 func writeSample(w io.Writer, format, dataType string, sampleIdx int, result *client.ReadResult) error {

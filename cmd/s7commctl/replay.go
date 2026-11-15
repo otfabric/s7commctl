@@ -27,7 +27,7 @@ type replayConfig struct {
 }
 
 var rplConfig = replayConfig{
-	Listen:  ":1102",
+	Listen:  "127.0.0.1:1102",
 	Format:  "text",
 	DelayMS: 0,
 }
@@ -35,7 +35,7 @@ var rplConfig = replayConfig{
 var replayCmd = &cobra.Command{
 	Use:   "replay",
 	Short: "Replay scaffold for deterministic S7 response scripts",
-	Long:  "Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. The default listens on every interface without authentication; --listen 127.0.0.1:PORT accepts local clients only. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.",
+	Long:  "Accepts incoming frames and optionally responds with scripted raw TPKT hex frames, one response per request. The default 127.0.0.1:1102 accepts local clients only; --listen :PORT listens on every interface, without authentication. Single-client mode: accepts one TCP connection; processes one request/response pair per scripted line until the connection closes.",
 	RunE:  runReplay,
 }
 

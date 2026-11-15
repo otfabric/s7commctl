@@ -1,5 +1,54 @@
 # s7commctl Releases
 
+## v0.10.0
+
+**Date:** 2026-11-15
+**Previous release:** v0.9.0
+
+### Summary
+
+Four behaviour changes that a script can see: `write --type bool` requires `--bit`; `write --type string` reads the STRING's declared maximum first and refuses a value that does not fit; `sniff` and `replay` listen on 127.0.0.1 by default; `record` counts failed samples, exits 1 when one failed and stops when the connection is lost. Each is listed under Breaking with what a script sees now and how to keep the old handling. JSON and JSONL output are unchanged.
+
+### Breaking
+
+- `write --type bool` without `--bit` is a usage error: exit 2 with `--type bool requires --bit 0-7, the bit of the byte at --offset to write; --type raw writes a whole byte`, before the prompt and before connecting, so nothing is sent. Before, it wrote the whole byte at `--offset` (`0x01` or `0x00`) with exit 0, and v0.9.0 printed a warning on stderr; that warning is gone. To keep the old handling: no flag restores it. `--type raw --value 01` (or `00`) writes the same whole byte; there is no `--type byte`, `--type raw` is the type that writes bytes.
+- `write --type string` reads byte 0 of the STRING at `--offset`, the maximum length the PLC program declares, before it writes (one Read Var of one octet, after the prompt):
+  - A value longer than that maximum: exit 2 with `the value has N octets and the STRING at DB1.DBB4 holds at most M (its byte 0); nothing was written`; no Write Var is sent. Before, the write went ahead and overwrote the bytes after the STRING.
+  - A value longer than 254 octets: exit 2 with `the value has N octets; an S7 STRING holds at most 254`, before the prompt and before connecting. Before, it was cut to 254 octets with exit 0.
+  - When byte 0 cannot be read, the write stops with `write failed: read the maximum length of the STRING at …` and the read's exit code (4 when the connection is lost, 5 on a timeout, 6 when the PLC refuses it); no Write Var is sent.
+  - A value that fits is written as in v0.9.0: current length and characters from `--offset`+1, byte 0 unchanged, the same success line and JSON.
+
+  To keep the old handling: no flag restores it. `--type raw --offset <offset+1> --value <length octet and characters in hex>` writes those octets without reading byte 0 and without a length check.
+- `sniff` listens on `127.0.0.1:15102` and `replay` on `127.0.0.1:1102` by default (were `:15102` and `:1102`, every interface). The first stdout line names the new address (`sniff listening on 127.0.0.1:15102`), and a client on another host is refused. To keep the old handling: `--listen :15102` and `--listen :1102`, or `S7COMMCTL_SNIFF_LISTEN=:15102` and `S7COMMCTL_REPLAY_LISTEN=:1102`.
+- `record` counts failed samples, those whose status is not `success`:
+  - The summary reads `Recorded N samples (M failed) to <file>`, also when M is 0 (was `Recorded N samples to <file>`).
+  - The command exits 1 when a sample failed, with `M of N samples failed; the last: <status> (<reason>)` on stderr (was 0).
+  - Nothing reconnects. After `--max-failures` consecutive samples that failed with `transport-error` or `timeout` (default 5), `record` stops, prints the summary, says on stderr `record stopped: the connection to <ip> was lost (K consecutive samples failed; the last: …)` and exits 4 (`transport-error`) or 5 (`timeout`), the code of the last sample. Before, it went on writing failure lines until `--count` or an interrupt, and exited 0. A sample with another failed status (`rejected`, `short-read`, `empty-read`, `protocol-error`) counts as failed but not as a lost connection, and ends a run of consecutive ones.
+  - An interrupt still ends `record` with 0 and no summary; the JSONL and hex lines are unchanged.
+
+  To keep the old handling: `--max-failures 0` keeps `record` running after a lost connection. No flag restores exit 0 with failed samples or the old summary line; a script that accepted failed samples can treat exit 1 as a completed run (each line's `status` says which samples failed).
+
+### Added
+
+- `record --max-failures N` (`S7COMMCTL_MAX_FAILURES`): the number of consecutive samples failing with a transport error or timeout after which `record` stops; default 5, `0` never stops, a negative value is a usage error (exit 2) before connecting.
+
+### Changed
+
+- `write --help`: `--bit` is described as required with `--type bool`. `sniff --help` and `replay --help` name the loopback default and `--listen :PORT` for every interface.
+
+### Documentation
+
+- README: BOOL and STRING writes, `record` failures and `--max-failures`, the `sniff` and `replay` defaults, the safety model. SECURITY.md: writes, "Listeners" with the new defaults, "Limits" for STRING values and `record`. docs/exitcodes.md: the cases of this release. docs/commands.md: `record --max-failures`, `write --bit`, the `sniff` and `replay` defaults. docs/json-output.md: the STRING refusal. EXAMPLES.md: `record`, `sniff`, `replay`.
+
+### Tests
+
+- `write --type bool` without `--bit`, with `--force`, at the prompt and with an invalid value: exit 2, no prompt, no connection; `--type raw --value 01` writes the whole byte.
+- `write --type string` against a simulated DB: boundary table of the declared maximum (0, 1, maximum − 1, maximum, maximum + 1, 253, 254, 255) with byte 0 unchanged and nothing written for a refused value; values of 255, 256 and 300 octets refused before the prompt and before connecting; byte 0 refused by the PLC, returned empty, and the connection closed on the read.
+- `sniff` and `replay`: the default `--listen` is a loopback address, and `--help` says so.
+- `record` against a fake PLC that closes the connection after one sample: the default stops after five failed samples with exit 4, `--max-failures` 1 and 3 stop earlier, 0 runs to `--count` with exit 1; refused samples are counted without stopping; `--max-failures -1` is a usage error before connecting. The status-to-exit-code mapping (4, 5, 6) has a table test.
+
+---
+
 ## v0.9.0
 
 **Date:** 2026-11-15

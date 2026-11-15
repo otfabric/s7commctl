@@ -109,6 +109,18 @@ func classify(err error, def int) int {
 	return def
 }
 
+// readStatusCode is the exit code of a read that failed with status s: 4 for a
+// transport error (the connection is lost), 5 for a timeout, 6 otherwise.
+func readStatusCode(s client.ReadStatus) int {
+	switch s {
+	case client.ReadStatusTransportErr:
+		return codeTransport
+	case client.ReadStatusTimeout:
+		return codeTimeout
+	}
+	return codeProtocol
+}
+
 // exitCode maps the error of a run to the process exit code. An error that
 // is no ExitError comes from cobra: the command line was rejected.
 func exitCode(err error) int {
