@@ -1,5 +1,19 @@
 # s7commctl Releases
 
+## v0.10.1
+
+**Date:** 2026-11-16
+**Previous release:** v0.10.0
+
+No command or flag is added or changed.
+
+### Changed
+
+- Built on go-s7comm v0.16.5 (was v0.16.4), go-cotp v1.4.2 (was v1.4.1) and go-tpkt v1.2.2 (was v1.2.1) (go-s7comm RELEASE.md, v0.16.5; go-cotp RELEASE.md, v1.4.2; go-tpkt RELEASE.md, v1.2.2). For the tool this means fewer allocations per COTP data segment and TPKT packet (a segment of at most 8192 octets and a packet of at most 8196 octets reuse the buffer of the previous one, and a TSDU of one segment is returned without a copy); nothing changes on the wire or in the output.
+- CI: the documentation check runs docsync v0.4.0 (was v0.3.x).
+
+---
+
 ## v0.10.0
 
 **Date:** 2026-11-15
