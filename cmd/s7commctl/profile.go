@@ -44,6 +44,10 @@ func runProfile(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return ExitUsage(err)
 	}
+	requestBound, err := profileConfig.RequestBound()
+	if err != nil {
+		return ExitUsage(err)
+	}
 	ctx := cmd.Context()
 	timeout := time.Duration(profileConfig.Timeout) * time.Millisecond
 	if timeout <= 0 {
@@ -89,10 +93,12 @@ func runProfile(cmd *cobra.Command, args []string) error {
 			client.WithRackSlot(firstValid.Rack, firstValid.Slot),
 			client.WithTimeout(timeout),
 		}
-		// --timeout also bounds each request of identify and the block list,
-		// as on the device commands; 0 or a negative value sets no such bound.
-		if profileConfig.Timeout > 0 {
-			opts = append(opts, client.WithRequestTimeout(timeout))
+		// Each request of identify and the block list is bounded as on the
+		// device commands: --request-timeout, or --timeout when it is not set
+		// (0 or a negative --timeout: no such bound). ctx, the run's bound of
+		// twice --timeout, bounds them too; the earlier deadline ends a request.
+		if requestBound > 0 {
+			opts = append(opts, client.WithRequestTimeout(requestBound))
 		}
 		if profileConfig.Port > 0 {
 			opts = append(opts, client.WithPort(profileConfig.Port))

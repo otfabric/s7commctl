@@ -1,5 +1,30 @@
 # s7commctl Releases
 
+## v0.12.0
+
+**Date:** 2026-11-16
+**Previous release:** v0.11.0
+
+`--request-timeout` sets the bound for each request apart from the bound for connecting. A run without it behaves as in v0.11.0.
+
+### Added
+
+- `--request-timeout` (milliseconds, `S7COMMCTL_REQUEST_TIMEOUT`) on `identify`, `read`, `write`, `blocks`, `list blocks`, `list db`, `block info`, `block upload`, `diagnostic`, `fingerprint`, `scan read-ranges`, `record` and `profile`: the bound for each request after connecting (sending one request and receiving its answer), through go-s7comm's `WithRequestTimeout`. `--timeout` keeps bounding connecting.
+  - Not set (the default): each request is bounded by `--timeout`, as in v0.11.0, and by nothing when `--timeout` is 0 or negative.
+  - `0`: no bound per request, while `--timeout` still bounds connecting. `--timeout 2000 --request-timeout 0` gives a connecting bound other than 5 s without a bound per request, which v0.11.0 had no setting for.
+  - Above 0: that bound for each request, whatever `--timeout` is, so a PLC that is slow to answer can get a longer bound than connecting.
+  - Negative: a usage error before connecting, exit 2 with `request-timeout must be >= 0 (0: no bound per request), got N`. A value above 9223372036854 (the largest number of milliseconds a duration holds) is refused the same way.
+  - A request that ends at `--request-timeout` gives the exit code and the error of one that ends at `--timeout`: exit 5 with `<operation> failed: …` ending in `context deadline exceeded`; a read reports status `timeout`, and `record` counts a failed sample.
+  - `profile` keeps its bound of twice `--timeout` (0: 10 s) on the whole run, and that bound applies to its requests too: a larger `--request-timeout` does not lengthen the run.
+  - `scan read-ranges` keeps bounding each probe read by `--timeout` (0: 5 s) as well; the earlier of the two ends a probe read.
+  - `discover`, `probe rackslot` and `compare read` have no `--request-timeout`: they keep their own `--timeout`, per host, attempt or candidate.
+
+### Changed
+
+- The help text of `--timeout` names `--request-timeout` (docs/commands.md). README.md (Timeouts, environment variables), docs/exitcodes.md (codes 2 and 5) and SECURITY.md (Limits) describe the new flag. No exit code changes.
+
+---
+
 ## v0.11.0
 
 **Date:** 2026-11-16

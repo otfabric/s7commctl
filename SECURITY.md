@@ -44,7 +44,7 @@ The defaults accept local clients only. Neither listener authenticates or encryp
 | A packet of a pcap capture | 262144 octets captured | `pcap-decode` stops with an error; frames decoded before it are printed |
 | Memory of `pcap-decode` | One packet at a time, and per direction of a connection less than one TPKT maximum pending after each packet | Captures of any size are read packet by packet |
 | Waiting for the next frame | `sniff` 120 s, `replay` 300 s | The command ends with exit 5 (timeout) |
-| Waiting for the PLC's answer to one request | `--timeout`, default 5000 ms (`0` or negative: no limit), since v0.11.0 | The command ends with exit 5 (timeout) and the connection is closed; a read reports status `timeout` |
+| Waiting for the PLC's answer to one request | `--request-timeout` (`0`: no limit; negative: refused with exit 2), since v0.12.0; when it is not set, `--timeout`, default 5000 ms (`0` or negative: no limit), since v0.11.0 | The command ends with exit 5 (timeout) and the connection is closed; a read reports status `timeout` |
 | A `write --type string` value | 254 octets, and the STRING's declared maximum (byte 0, read before the write) | Refused with exit 2; nothing is written |
 | Consecutive `record` samples that fail with a transport error or timeout | `--max-failures`, default 5 (`0`: no limit) | `record` stops: the connection is lost, exit 4 or 5 |
 

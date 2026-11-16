@@ -16,12 +16,19 @@ import (
 // run executes the binary named by S7COMMCTL_E2E_BIN (set by make e2e).
 func run(t *testing.T, args ...string) (output string, exitCode int) {
 	t.Helper()
+	return runEnv(t, nil, args...)
+}
+
+// runEnv is run with env ("NAME=value") added to the environment.
+func runEnv(t *testing.T, env []string, args ...string) (output string, exitCode int) {
+	t.Helper()
 	bin := os.Getenv("S7COMMCTL_E2E_BIN")
 	if bin == "" {
 		t.Fatal("S7COMMCTL_E2E_BIN is not set; run make e2e")
 	}
 	var out bytes.Buffer
 	cmd := exec.Command(bin, args...)
+	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	err := cmd.Run()
@@ -68,5 +75,17 @@ func TestUnknownCommandIsAUsageError(t *testing.T) {
 	}
 	if !strings.Contains(output, `unknown command "nosuchcommand"`) {
 		t.Fatalf("output does not name the unknown command:\n%s", output)
+	}
+}
+
+// S7COMMCTL_REQUEST_TIMEOUT sets --request-timeout: a negative value is a
+// usage error (exit 2) before connecting, as on the command line.
+func TestRequestTimeoutFromTheEnvironment(t *testing.T) {
+	output, code := runEnv(t, []string{"S7COMMCTL_REQUEST_TIMEOUT=-1"}, "identify", "--ip", "127.0.0.1", "--port", "1")
+	if code != 2 {
+		t.Fatalf("exit code %d, want 2\n%s", code, output)
+	}
+	if !strings.Contains(output, "request-timeout must be >= 0 (0: no bound per request), got -1") {
+		t.Fatalf("output does not name --request-timeout:\n%s", output)
 	}
 }

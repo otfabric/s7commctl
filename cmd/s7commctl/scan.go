@@ -81,7 +81,8 @@ func runScanReadRanges(cmd *cobra.Command, args []string) error {
 		RetryDelay:  time.Duration(scanReadRangesConfig.RetryDelayMS) * time.Millisecond,
 		Repeat:      scanReadRangesConfig.Repeat,
 		Parallelism: 0,
-		// --timeout also bounds each probe read (0 = the library default, 5 s).
+		// --timeout also bounds each probe read (0 = the library default, 5 s),
+		// whatever --request-timeout is; the earlier bound ends a probe read.
 		Timeout: time.Duration(scanReadRangesConfig.Timeout) * time.Millisecond,
 	}
 	if req.Step == 0 {

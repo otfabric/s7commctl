@@ -211,13 +211,21 @@ Note: Cobra is configured so that usage/help is not printed on runtime failures 
 
 ### Timeouts
 
-On the commands that connect to one PLC (`identify`, `read`, `write`, `blocks`, `list blocks`, `list db`, `block info`, `block upload`, `diagnostic`, `fingerprint`, `scan read-ranges`, `record`), `--timeout` (milliseconds, default 5000, `S7COMMCTL_TIMEOUT`) bounds connecting (TCP, COTP and S7 setup) and, separately, each request after it: sending one request and receiving its answer. A command of several requests (identify, a read or write larger than the PDU, a block list or upload of several packets) bounds each of them; the pauses of `--rate-limit-ms` are not requests.
+On the commands that connect to one PLC (`identify`, `read`, `write`, `blocks`, `list blocks`, `list db`, `block info`, `block upload`, `diagnostic`, `fingerprint`, `scan read-ranges`, `record`), `--timeout` (milliseconds, default 5000, `S7COMMCTL_TIMEOUT`) bounds connecting (TCP, COTP and S7 setup). Each request after it, sending one request and receiving its answer, has a bound of its own, which `--request-timeout` (milliseconds, `S7COMMCTL_REQUEST_TIMEOUT`, since v0.12.0) sets. A command of several requests (identify, a read or write larger than the PDU, a block list or upload of several packets) bounds each of them; the pauses of `--rate-limit-ms` are not requests.
 
-- A request without an answer in time ends the command with exit 5 (timeout) and an error that ends in `context deadline exceeded`, as a timeout while connecting does. A read reports status `timeout` (exit 0, or 1 with `--strict-read`), and `record` counts the sample as failed.
+| `--request-timeout` | Each request is bounded by |
+|---|---|
+| not set (the default) | `--timeout`, as in v0.11.0; nothing when `--timeout` is 0 or negative |
+| `0` | nothing: the command waits for the answer until the connection fails or it is interrupted |
+| above 0 | that value, whatever `--timeout` is |
+| negative | nothing is sent: a usage error (exit 2) before connecting |
+
+- A request without an answer in time ends the command with exit 5 (timeout) and an error that ends in `context deadline exceeded`, as a timeout while connecting does, whichever of the two flags set the bound. A read reports status `timeout` (exit 0, or 1 with `--strict-read`), and `record` counts the sample as failed.
 - The connection ends with that request. A `write` whose answer comes too late may have been carried out by the PLC.
-- `--timeout 0`, or a negative value, keeps 5 s for connecting and sets no bound per request: the command waits for the answer until the connection fails or it is interrupted, as before v0.11.0. `scan read-ranges` bounds each probe read by `--timeout` in any case (0: 5 s).
+- `--timeout 0`, or a negative value, keeps 5 s for connecting. `--timeout 0` alone also sets no bound per request, as before v0.11.0; `--timeout 2000 --request-timeout 0` bounds connecting by 2 s and sets no bound per request.
+- `scan read-ranges` bounds each probe read by `--timeout` in any case (0: 5 s), as before v0.12.0: a smaller `--request-timeout` ends a probe read earlier, a larger one or `0` does not lengthen it.
 
-`profile` applies `--timeout` to each probe, to connecting and to each request, and bounds the whole run by twice `--timeout`. `discover`, `probe rackslot` and `compare read` have a `--timeout` of their own, per host, attempt or candidate ([docs/commands.md](docs/commands.md)).
+`profile` applies `--timeout` to each probe and to connecting, and `--request-timeout` to each request of identify and the block list, with the same rules. It bounds the whole run by twice `--timeout` (0: 10 s), and that bound applies to the requests too: a `--request-timeout` above it does not lengthen the run. `discover`, `probe rackslot` and `compare read` have a `--timeout` of their own, per host, attempt or candidate, and no `--request-timeout` ([docs/commands.md](docs/commands.md)).
 
 ## Common examples
 
@@ -469,6 +477,7 @@ Most command flags support `S7COMMCTL_*` environment variables, for example:
 - S7COMMCTL_RACK
 - S7COMMCTL_SLOT
 - S7COMMCTL_TIMEOUT
+- S7COMMCTL_REQUEST_TIMEOUT (`--request-timeout`)
 - S7COMMCTL_AUTO_RACK_SLOT (`--auto-rack-slot`)
 - S7COMMCTL_BRUTE_RACK_SLOT (`--brute-rack-slot`)
 - S7COMMCTL_LOCAL_TSAP (`--local-tsap`)
