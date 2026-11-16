@@ -1,5 +1,18 @@
 # s7commctl Releases
 
+## v0.10.2
+
+**Date:** 2026-11-16
+**Previous release:** v0.10.1
+
+No command or flag is added or changed.
+
+### Changed
+
+- Built on go-s7comm v0.17.0 (was v0.16.5) (go-s7comm RELEASE.md, v0.17.0). Its `### Breaking` entries concern a `Close` called while another call is in flight, and a call that waits for its turn behind another; s7commctl closes its client only after its calls have returned and makes one call at a time, so nothing changes in its output or exit status. The new `WithRequestTimeout` is not used yet.
+
+---
+
 ## v0.10.1
 
 **Date:** 2026-11-16
