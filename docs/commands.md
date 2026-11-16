@@ -29,7 +29,7 @@ Get block metadata
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Block type: OB, DB, FC, FB |
 
 ## `s7commctl block upload`
@@ -53,7 +53,7 @@ Upload block contents
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Block type: OB, DB, FC, FB |
 
 ## `s7commctl blocks`
@@ -77,7 +77,7 @@ Alias/shortcut for listing blocks. Use "list blocks" for the same behavior under
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Block type: OB, DB, FC, FB |
 
 ## `s7commctl compare`
@@ -133,7 +133,7 @@ Read diagnostic buffer from S7 device
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 
 ## `s7commctl discover`
 
@@ -176,7 +176,7 @@ Fingerprint an S7 device
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 
 ## `s7commctl identify`
 
@@ -198,7 +198,7 @@ Identify an S7 device
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 
 ## `s7commctl list`
 
@@ -233,7 +233,7 @@ List program blocks
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Block type: OB, DB, FC, FB |
 
 ## `s7commctl list db`
@@ -257,7 +257,7 @@ List DB blocks
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Block type: OB, DB, FC, FB |
 
 ## `s7commctl pcap-decode`
@@ -320,7 +320,7 @@ Probe target for valid rack/slot, then run identify and list blocks to summarize
 | `--port` | int | TCP port (default 102) [env: S7COMMCTL_PORT] (default 102) |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for each probe, connecting and each request; the whole run is bounded by twice this (0: 5 s, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 
 ## `s7commctl read`
 
@@ -347,7 +347,7 @@ Read data from an S7 device
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
 | `--strict-read` | bool | Fail when status is not success (e.g. short-read, empty-read) [env: S7COMMCTL_STRICT_READ] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Data type [env: S7COMMCTL_TYPE] (default "raw") |
 
 ## `s7commctl record`
@@ -378,7 +378,7 @@ Record periodic S7 reads to a local file
 | `--size` | int | Number of bytes per sample [env: S7COMMCTL_SIZE] (default 1) |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Data type [env: S7COMMCTL_TYPE] (default "raw") |
 
 ## `s7commctl replay`
@@ -428,7 +428,7 @@ Probe an area from start to end by step; consolidate adjacent readable probes in
 | `--start` | int | Start offset (inclusive) [env: S7COMMCTL_SCAN_START] |
 | `--step` | int | Step between probes (0 = use probe-size) [env: S7COMMCTL_SCAN_STEP] |
 | `--summary-only` | bool | Print only span summary (no per-probe table) [env: S7COMMCTL_SCAN_SUMMARY_ONLY] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 
 ## `s7commctl sniff`
 
@@ -481,6 +481,6 @@ Write data to an S7 device
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--timeout` | int | Timeout in milliseconds [env: S7COMMCTL_TIMEOUT] (default 5000) |
+| `--timeout` | int | Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
 | `--type` | string | Data type (default "raw") |
 | `--value` | string | Value to write |

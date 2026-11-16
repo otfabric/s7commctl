@@ -56,6 +56,7 @@ s7commctl completion powershell | Out-String | Invoke-Expression
 - [Usage](#usage)
   - [Command tree](#command-tree)
   - [Exit codes](#exit-codes)
+  - [Timeouts](#timeouts)
 - [Common examples](#common-examples)
 - [Configuration via environment variables](#configuration-via-environment-variables)
 - [Safety model](#safety-model)
@@ -207,6 +208,16 @@ s7commctl
 Exit codes follow the organisation table and are listed, with the mapping from older versions, in [docs/exitcodes.md](docs/exitcodes.md): 0 success, 1 a completed operation that reports a non-success, 2 usage, 3 invalid input, 4 connection, 5 timeout, 6 protocol, 9 permission, 10 internal, 130 interrupted.
 
 Note: Cobra is configured so that usage/help is not printed on runtime failures (only on validation errors).
+
+### Timeouts
+
+On the commands that connect to one PLC (`identify`, `read`, `write`, `blocks`, `list blocks`, `list db`, `block info`, `block upload`, `diagnostic`, `fingerprint`, `scan read-ranges`, `record`), `--timeout` (milliseconds, default 5000, `S7COMMCTL_TIMEOUT`) bounds connecting (TCP, COTP and S7 setup) and, separately, each request after it: sending one request and receiving its answer. A command of several requests (identify, a read or write larger than the PDU, a block list or upload of several packets) bounds each of them; the pauses of `--rate-limit-ms` are not requests.
+
+- A request without an answer in time ends the command with exit 5 (timeout) and an error that ends in `context deadline exceeded`, as a timeout while connecting does. A read reports status `timeout` (exit 0, or 1 with `--strict-read`), and `record` counts the sample as failed.
+- The connection ends with that request. A `write` whose answer comes too late may have been carried out by the PLC.
+- `--timeout 0`, or a negative value, keeps 5 s for connecting and sets no bound per request: the command waits for the answer until the connection fails or it is interrupted, as before v0.11.0. `scan read-ranges` bounds each probe read by `--timeout` in any case (0: 5 s).
+
+`profile` applies `--timeout` to each probe, to connecting and to each request, and bounds the whole run by twice `--timeout`. `discover`, `probe rackslot` and `compare read` have a `--timeout` of their own, per host, attempt or candidate ([docs/commands.md](docs/commands.md)).
 
 ## Common examples
 

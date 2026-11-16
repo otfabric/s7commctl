@@ -93,6 +93,7 @@ func TestClassifiedExitCodes(t *testing.T) {
 		{"connect", ExitConnect(errors.New("connect failed")), 4},
 		{"connect refused", ExitConnect(fmt.Errorf("connect failed: %w", refused)), 4},
 		{"connect timeout", ExitConnect(fmt.Errorf("connect failed: %w", context.DeadlineExceeded)), 5},
+		{"request timeout", ExitRuntime(fmt.Errorf("identify failed: %w", context.DeadlineExceeded)), 5},
 		{"interrupted", ExitRuntime(fmt.Errorf("read failed: %w", context.Canceled)), 130},
 		{"not connected", ExitRuntime(client.ErrNotConnected), 4},
 		{"protocol", ExitRuntime(client.ErrProtocolFailure), 6},

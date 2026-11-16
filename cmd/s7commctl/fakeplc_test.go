@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/otfabric/go-s7comm/wire"
 )
@@ -57,12 +58,22 @@ type fakePLC struct {
 	// dropAfterReads closes the connection once it has answered this many
 	// Read Var requests (0: never), as a PLC that goes away does.
 	dropAfterReads int
+	// slowAnswer, when positive, is how long the PLC takes to answer request
+	// number slowRequest after Setup Communication on each connection (0 or 1:
+	// the first), as a busy PLC does; the others are answered at once. A
+	// stopped PLC sends nothing more.
+	slowAnswer  time.Duration
+	slowRequest int
 
-	mu     sync.Mutex
-	conns  map[net.Conn]struct{}
-	writes []fakeWrite
-	dials  int
-	reads  int
+	done     chan struct{} // closed by stop
+	stopOnce sync.Once
+
+	mu          sync.Mutex
+	conns       map[net.Conn]struct{}
+	writes      []fakeWrite
+	dials       int
+	reads       int
+	slowAnswers int // answers sent after a slowAnswer wait
 }
 
 // newFakePLC starts a fake PLC that is stopped when the test ends.
@@ -72,7 +83,7 @@ func newFakePLC(t *testing.T) *fakePLC {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	p := &fakePLC{ln: ln, conns: map[net.Conn]struct{}{}}
+	p := &fakePLC{ln: ln, conns: map[net.Conn]struct{}{}, done: make(chan struct{})}
 	p.port = strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
 	p.wg.Add(1)
 	go p.acceptLoop()
@@ -80,7 +91,9 @@ func newFakePLC(t *testing.T) *fakePLC {
 	return p
 }
 
+// stop may be called more than once.
 func (p *fakePLC) stop() {
+	p.stopOnce.Do(func() { close(p.done) })
 	_ = p.ln.Close()
 	p.mu.Lock()
 	for c := range p.conns {
@@ -99,6 +112,25 @@ func (p *fakePLC) recordedWrites() []fakeWrite {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]fakeWrite(nil), p.writes...)
+}
+
+// slowAnswersSent is the number of answers sent after a slowAnswer wait.
+func (p *fakePLC) slowAnswersSent() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.slowAnswers
+}
+
+// waitSlowAnswer waits slowAnswer and reports false when the PLC stopped first.
+func (p *fakePLC) waitSlowAnswer() bool {
+	t := time.NewTimer(p.slowAnswer)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-p.done:
+		return false
+	}
 }
 
 // dialCount is the number of TCP connections the PLC accepted.
@@ -151,7 +183,7 @@ func (p *fakePLC) serve(conn net.Conn) {
 		return
 	}
 
-	uploadPos := 0
+	uploadPos, requests := 0, 0
 	for {
 		tsdu, err := readTSDU(conn)
 		if err != nil {
@@ -204,8 +236,21 @@ func (p *fakePLC) serve(conn net.Conn) {
 		default:
 			return
 		}
+		slow := false
+		if h.ROSCTR.IsUserdata() || param[0] != wire.FuncSetupComm {
+			requests++
+			slow = p.slowAnswer > 0 && requests == max(p.slowRequest, 1)
+		}
+		if slow && !p.waitSlowAnswer() {
+			return
+		}
 		if err := writeTPKT(conn, append([]byte{0x02, 0xF0, 0x80}, resp...)); err != nil {
 			return
+		}
+		if slow {
+			p.mu.Lock()
+			p.slowAnswers++
+			p.mu.Unlock()
 		}
 		if p.dropAfterReads > 0 && !h.ROSCTR.IsUserdata() && param[0] == wire.FuncReadVar {
 			p.mu.Lock()

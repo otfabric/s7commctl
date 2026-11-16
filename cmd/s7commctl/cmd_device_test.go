@@ -5,6 +5,7 @@ package s7commctl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -1273,4 +1275,124 @@ func TestRecord_Failures(t *testing.T) {
 	runCLI(t, base("--local-tsap", "1")...).wantUsage(t, "must be set together")
 	runCLI(t, base("--offset", "-1", "--every-ms", "1", "--count", "1")...).wantUsage(t, "record read failed")
 	runCLI(t, p.args("record", "--output", filepath.Join(out, "missing", "file"))...).wantFailure(t, "open output file")
+}
+
+// TestTimeout_BoundsEachRequest: --timeout bounds each request after the
+// connection is set up, not only connecting. The PLC answers one request (the
+// first, or the one a case names) after 5 s; with --timeout 200 that request
+// ends at the timeout, before the answer is sent, and the command reports it
+// as a timeout: exit 5 and an error that matches context.DeadlineExceeded, as
+// a timeout does when connecting. A read reports status timeout (exit 0, 1
+// with --strict-read), as for any failed read; record counts a failed sample;
+// fingerprint and diagnostic report a later request as failed, with exit 0.
+// The timeout ends the connection, so the requests after it fail too.
+func TestTimeout_BoundsEachRequest(t *testing.T) {
+	wantTimeout := func(t *testing.T, r cliResult, msg string) cliResult {
+		t.Helper()
+		r.wantCode(t, msg, func(code int) bool { return code == codeTimeout }, "5 (timeout)")
+		if !errors.Is(r.err, context.DeadlineExceeded) {
+			t.Errorf("error %q does not match context.DeadlineExceeded", r.err)
+		}
+		return r
+	}
+	for _, tc := range []struct {
+		name    string
+		request int // the slow request after setup: 0 the first
+		args    func(out string) []string
+		check   func(t *testing.T, p *fakePLC, r cliResult)
+	}{
+		{"identify", 0, func(string) []string { return []string{"identify"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) { wantTimeout(t, r, "identify failed") }},
+		{"identify, second request", 2, func(string) []string { return []string{"identify"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) { wantTimeout(t, r, "identify failed") }},
+		{"fingerprint", 0, func(string) []string { return []string{"fingerprint"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) { wantTimeout(t, r, "identify failed") }},
+		// Request 3 is the protection level, after the two SZL reads of identify:
+		// unknown, never "No Protection", and the requests after it fail too.
+		{"fingerprint, protection level", 3, func(string) []string { return []string{"fingerprint", "--format", "json"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				m := r.ok(t).jsonOut(t)
+				wantField(t, m, nil, "result", "protection")
+				wantField(t, m, "context deadline exceeded", "result", "protection_error")
+				wantField(t, m, false, "result", "write_likely_allowed")
+				wantField(t, m, false, "result", "supports_read")
+			}},
+		// Request 2 is the CPU state, after the diagnostic buffer.
+		{"diagnostic, CPU state", 2, func(string) []string { return []string{"diagnostic", "--format", "json"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				m := r.ok(t).jsonOut(t)
+				wantField(t, m, "UNKNOWN", "result", "cpu_state")
+				wantField(t, m, nil, "result", "protection_level")
+			}},
+		{"diagnostic", 0, func(string) []string { return []string{"diagnostic", "--format", "json"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				wantField(t, wantTimeout(t, r, "read diagnostic buffer failed").jsonOut(t), "runtime", "error", "code")
+			}},
+		{"list blocks", 0, func(string) []string { return []string{"list", "blocks"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) { wantTimeout(t, r, "list blocks failed") }},
+		{"block info", 0, func(string) []string { return []string{"block", "info", "--type", "DB", "--number", "1"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) { wantTimeout(t, r, "block info failed") }},
+		{"block upload", 0, func(string) []string { return []string{"block", "upload", "--type", "DB", "--number", "1"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) { wantTimeout(t, r, "block upload failed") }},
+		{"write", 0, func(string) []string { return []string{"write", "--dangerous", "--force", "--value", "01"} },
+			func(t *testing.T, p *fakePLC, r cliResult) {
+				wantTimeout(t, r, "write failed")
+				if w := p.recordedWrites(); len(w) != 1 {
+					t.Errorf("the PLC received %d writes, want 1: the write was sent", len(w))
+				}
+			}},
+		{"record --max-failures 1", 0, func(out string) []string {
+			return []string{"record", "--every-ms", "1", "--count", "3", "--max-failures", "1", "--output", out}
+		},
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				// The code of the sample's status, as for a sample that timed out before.
+				r.wantCode(t, "was lost (1 consecutive samples failed; the last: timeout (context deadline exceeded))",
+					func(code int) bool { return code == codeTimeout }, "5 (timeout)").has(t, "Recorded 1 samples (1 failed)")
+			}},
+		{"record", 0, func(out string) []string {
+			return []string{"record", "--every-ms", "1", "--count", "12", "--output", out}
+		},
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				// The timeout ends the connection and nothing reconnects: the
+				// next samples fail with a transport error until --max-failures.
+				r.wantCode(t, "was lost (5 consecutive samples failed; the last: transport-error",
+					func(code int) bool { return code == codeTransport }, "4 (transport)").has(t, "Recorded 5 samples (5 failed)")
+			}},
+		{"read", 0, func(string) []string { return []string{"read", "--format", "json"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				wantField(t, r.ok(t).jsonOut(t), "timeout", "result", "status")
+			}},
+		{"read --strict-read", 0, func(string) []string { return []string{"read", "--strict-read"} },
+			func(t *testing.T, _ *fakePLC, r cliResult) {
+				r.wantFindings(t, "context deadline exceeded").has(t, "status=timeout")
+			}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.slowAnswer, p.slowRequest = 5*time.Second, tc.request
+			p.upload = [][]byte{{0xDE, 0xAD}}
+			args := append(p.args(tc.args(filepath.Join(t.TempDir(), "rec"))...), "--timeout", "200")
+			r := runCLI(t, args...)
+			tc.check(t, p, r)
+			if n := p.slowAnswersSent(); n != 0 {
+				t.Errorf("the command waited for the slow answer (%d sent)", n)
+			}
+		})
+	}
+}
+
+// TestTimeout_ZeroOrNegativeSetsNoRequestBound: --timeout 0 or a negative
+// value leaves the requests unbounded, as before: the command waits for a
+// slow answer. Connecting keeps the library's default bound.
+func TestTimeout_ZeroOrNegativeSetsNoRequestBound(t *testing.T) {
+	for _, timeout := range []string{"0", "-1"} {
+		t.Run(timeout, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.slowAnswer = 300 * time.Millisecond
+			runCLI(t, append(p.args("identify"), "--timeout", timeout)...).ok(t).has(t, "6ES7 315-2EH14-0AB0")
+			if n := p.slowAnswersSent(); n != 1 {
+				t.Errorf("slow answers sent = %d, want 1", n)
+			}
+		})
+	}
 }
