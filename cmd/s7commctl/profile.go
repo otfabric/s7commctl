@@ -89,6 +89,11 @@ func runProfile(cmd *cobra.Command, args []string) error {
 			client.WithRackSlot(firstValid.Rack, firstValid.Slot),
 			client.WithTimeout(timeout),
 		}
+		// --timeout also bounds each request of identify and the block list,
+		// as on the device commands; 0 or a negative value sets no such bound.
+		if profileConfig.Timeout > 0 {
+			opts = append(opts, client.WithRequestTimeout(timeout))
+		}
 		if profileConfig.Port > 0 {
 			opts = append(opts, client.WithPort(profileConfig.Port))
 		}

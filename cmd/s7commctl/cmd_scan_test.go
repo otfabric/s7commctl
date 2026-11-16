@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/otfabric/go-s7comm/client"
 	"github.com/otfabric/go-s7comm/model"
@@ -610,6 +611,21 @@ func TestProfile_IdentifyWithoutFieldsIsPartial(t *testing.T) {
 		return defaultSZL(id, index)
 	}
 	runCLI(t, p.args("profile")...).ok(t).has(t, "Identify support:      partial")
+}
+
+// TestProfile_TimeoutBoundsEachRequest: --timeout bounds each request of
+// identify and the block list, inside the whole run's bound of twice
+// --timeout. The PLC answers the first request of identify after 1.5 s, within
+// the run's 2 s: with --timeout 1000 that request ends at 1 s, so identify and
+// the block list (on the session the timeout ended) are reported as failed.
+func TestProfile_TimeoutBoundsEachRequest(t *testing.T) {
+	p := newFakePLC(t)
+	p.slowAnswer = 1500 * time.Millisecond
+	runCLI(t, append(p.args("profile"), "--timeout", "1000")...).ok(t).
+		has(t, "Setup support:         yes", "Identify support:      no", "Block list support:    no")
+	if n := p.slowAnswersSent(); n != 0 {
+		t.Errorf("profile waited for the slow answer (%d sent)", n)
+	}
 }
 
 func TestProfile_Validation(t *testing.T) {

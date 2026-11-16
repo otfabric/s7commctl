@@ -1,5 +1,32 @@
 # s7commctl Releases
 
+## v0.11.0
+
+**Date:** 2026-11-16
+**Previous release:** v0.10.2
+
+No command or flag is added. `--timeout` bounds each request as well as connecting.
+
+### Breaking
+
+- `--timeout` (default 5000 ms, `S7COMMCTL_TIMEOUT`) bounds each request after connecting, not only connecting: sending one request and receiving its answer, through go-s7comm's `WithRequestTimeout`. It applies to `identify`, `read`, `write`, `blocks`, `list blocks`, `list db`, `block info`, `block upload`, `diagnostic`, `fingerprint`, `scan read-ranges`, `record` and to identify and the block list of `profile`. A command of several requests bounds each of them; the pauses of `--rate-limit-ms` are not requests.
+
+  Who notices: a run against a PLC, or a path to it, that takes longer than `--timeout` to answer one request. Before, the command waited for the answer and reported its result; now it ends at the timeout, and the timeout ends the connection:
+  - `identify`, `write`, `blocks`, `list blocks`, `list db`, `block info`, `block upload`, `diagnostic` while it reads the diagnostic buffer, and `fingerprint` during identify: exit 5 with `<operation> failed: …` ending in `context deadline exceeded`, the code and the error of a timeout while connecting. A `write` was sent before its answer was due, so the PLC may have carried it out.
+  - `read`: status `timeout` (`"status": "timeout"` in JSON), exit 0, or 1 with `--strict-read`, as for any failed read.
+  - `record`: the sample fails with `timeout`. Nothing reconnects, so the next samples fail with `transport-error`, and `record` stops after `--max-failures` consecutive failures (default 5) with exit 4, or with 5 when it stops on the timed-out sample (`--max-failures 1`).
+  - A later request of `fingerprint` or `diagnostic` (protection level, CPU state, the read and block list probes of `fingerprint`), and identify or the block list of `profile`: reported as failed, with exit 0, as when the PLC refuses it (protection `unknown` with `protection_error`, `cpu_state` `UNKNOWN`, `Identify support: no`); the requests after it fail as well.
+  - `scan read-ranges` bounded each probe read by `--timeout` before; it does not change. `discover`, `probe rackslot` and `compare read` keep their own `--timeout`, unchanged.
+
+  To keep the old handling: `--timeout 0` (or `S7COMMCTL_TIMEOUT=0`) sets no bound per request, as before, and keeps 5 s for connecting, the bound that `--timeout 0` gave before; a negative value does the same, as before. Or a `--timeout` larger than the slowest answer, which also bounds connecting by that value. There is no setting for a connecting bound other than 5 s without a bound per request.
+
+### Changed
+
+- Built on go-s7comm v0.17.1 (was v0.17.0) (go-s7comm RELEASE.md, v0.17.1). s7commctl closes the client only after its calls have returned, so its output does not change.
+- The help text of `--timeout` says what it bounds (docs/commands.md). README.md has a Timeouts section; docs/exitcodes.md lists the change; SECURITY.md lists the wait for an answer under Limits.
+
+---
+
 ## v0.10.2
 
 **Date:** 2026-11-16

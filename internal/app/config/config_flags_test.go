@@ -20,7 +20,12 @@ func TestToClientOptions_Modes(t *testing.T) {
 		{"rack/slot", DeviceConfig{Rack: 0, Slot: 1}, 1},
 		{"auto", DeviceConfig{AutoRack: true}, 1},
 		{"tsap wins over auto", DeviceConfig{LocalTSAP: "0x0100", RemoteTSAP: "0x0301", AutoRack: true}, 1},
-		{"all options", DeviceConfig{Port: 1102, Timeout: 100, RateLimitMS: 5}, 4},
+		{"all options", DeviceConfig{Port: 1102, Timeout: 100, RateLimitMS: 5}, 5},
+		// --timeout gives two options, the bound on connecting and on each
+		// request; 0 or a negative value gives neither.
+		{"timeout", DeviceConfig{Timeout: 100}, 3},
+		{"timeout 0", DeviceConfig{Timeout: 0}, 1},
+		{"negative timeout", DeviceConfig{Timeout: -1}, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			opts, err := tc.cfg.ToClientOptions()
