@@ -84,6 +84,28 @@ func TestScan_MixedRepeatsAreInconclusive(t *testing.T) {
 		has(t, "Inconclusive spans:\n  [0..8) bytes 0-7")
 }
 
+// TestScan_ProbeReadsKeepTheTimeoutBound: scan read-ranges bounds each probe
+// read by --timeout, as before --request-timeout existed, and by
+// --request-timeout as well: the earlier of the two ends a probe read. The PLC
+// answers the probe after 1 s.
+func TestScan_ProbeReadsKeepTheTimeoutBound(t *testing.T) {
+	for _, flags := range [][]string{
+		{"--timeout", "200", "--request-timeout", "0"},
+		{"--timeout", "200", "--request-timeout", "3000"},
+		{"--timeout", "3000", "--request-timeout", "200"},
+	} {
+		t.Run(strings.Join(flags, " "), func(t *testing.T) {
+			p := newFakePLC(t)
+			p.slowAnswer = time.Second
+			runCLI(t, append(p.args("scan", "read-ranges", "--end", "8", "--probe-size", "8"), flags...)...).ok(t).
+				has(t, "Failed spans:\n  [0..8) bytes 0-7  status=timeout")
+			if n := p.slowAnswersSent(); n != 0 {
+				t.Errorf("the probe waited for the slow answer (%d sent)", n)
+			}
+		})
+	}
+}
+
 func TestScan_Validation(t *testing.T) {
 	p := newFakePLC(t)
 	base := func(extra ...string) []string { return append(p.args("scan", "read-ranges"), extra...) }
@@ -625,6 +647,41 @@ func TestProfile_TimeoutBoundsEachRequest(t *testing.T) {
 		has(t, "Setup support:         yes", "Identify support:      no", "Block list support:    no")
 	if n := p.slowAnswersSent(); n != 0 {
 		t.Errorf("profile waited for the slow answer (%d sent)", n)
+	}
+}
+
+// TestProfile_RequestTimeout: --request-timeout bounds each request of identify
+// and the block list in place of --timeout, and the run's bound of twice
+// --timeout still applies: a --request-timeout above it does not lengthen the
+// run. The PLC answers the first request of identify late.
+func TestProfile_RequestTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		slowAnswer time.Duration
+		flags      []string
+		identify   string
+		sent       int // slow answers sent
+	}{
+		// --timeout alone would end the request at 1.5 s; the run ends at 3 s.
+		{"0: no bound per request", 2 * time.Second,
+			[]string{"--timeout", "1500", "--request-timeout", "0"}, "yes", 1},
+		// --timeout alone would wait for the answer at 1 s; the run ends at 10 s.
+		{"below --timeout", time.Second,
+			[]string{"--timeout", "5000", "--request-timeout", "200"}, "no", 0},
+		// The request bound is 60 s; the run's bound of 2 s ends the request
+		// before the answer at 5 s.
+		{"above the run's bound", 5 * time.Second,
+			[]string{"--timeout", "1000", "--request-timeout", "60000"}, "no", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.slowAnswer = tc.slowAnswer
+			r := runCLI(t, append(p.args("profile"), tc.flags...)...).ok(t)
+			r.has(t, "Setup support:         yes", "Identify support:      "+tc.identify)
+			if n := p.slowAnswersSent(); n != tc.sent {
+				t.Errorf("slow answers sent = %d, want %d", n, tc.sent)
+			}
+		})
 	}
 }
 

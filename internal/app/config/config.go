@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"reflect"
 	"strconv"
@@ -41,7 +42,8 @@ type DeviceConfig struct {
 	BruteRack         bool   `flag:"brute-rack-slot" env:"S7COMMCTL_BRUTE_RACK_SLOT" desc:"Brute rack 0-3 and slot 0-5"`
 	LocalTSAP         string `flag:"local-tsap" env:"S7COMMCTL_LOCAL_TSAP" desc:"Local TSAP (decimal or 0x hex)"`
 	RemoteTSAP        string `flag:"remote-tsap" env:"S7COMMCTL_REMOTE_TSAP" desc:"Remote TSAP (decimal or 0x hex)"`
-	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds for connecting and for each request (0: 5 s for connecting, no bound per request)"`
+	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds for connecting, and for each request when --request-timeout is not set (0: 5 s for connecting, no bound per request)"`
+	RequestTimeout    *int   `flag:"request-timeout" env:"S7COMMCTL_REQUEST_TIMEOUT" desc:"Timeout in milliseconds for each request after connecting (not set: --timeout; 0: no bound per request)"`
 	RateLimitMS       int    `flag:"rate-limit-ms" env:"S7COMMCTL_RATE_LIMIT_MS" desc:"Minimum delay between protocol operations in ms"`
 	Quiet             bool   `flag:"quiet" env:"S7COMMCTL_QUIET" desc:"Minimal output"`
 	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning (e.g. authorized environments)"`
@@ -76,12 +78,18 @@ func (c DeviceConfig) ToClientOptions() ([]client.Option, error) {
 	if c.Port > 0 {
 		opts = append(opts, client.WithPort(c.Port))
 	}
-	// --timeout bounds connecting and, separately, each request after it.
-	// 0 or a negative value passes neither: connecting keeps the library's
-	// default bound (5 s) and the requests have none.
+	// --timeout bounds connecting; 0 or a negative value keeps the library's
+	// default bound (5 s). Each request after it has its own bound: see
+	// RequestBound.
 	if c.Timeout > 0 {
-		d := time.Duration(c.Timeout) * time.Millisecond
-		opts = append(opts, client.WithTimeout(d), client.WithRequestTimeout(d))
+		opts = append(opts, client.WithTimeout(time.Duration(c.Timeout)*time.Millisecond))
+	}
+	rt, err := c.RequestBound()
+	if err != nil {
+		return nil, err
+	}
+	if rt > 0 {
+		opts = append(opts, client.WithRequestTimeout(rt))
 	}
 	if c.RateLimitMS > 0 {
 		opts = append(opts, client.WithRateLimit(time.Duration(c.RateLimitMS)*time.Millisecond))
@@ -94,6 +102,37 @@ func (c DeviceConfig) ToClientOptions() ([]client.Option, error) {
 		opts = append(opts, client.WithDialer(d))
 	}
 	return opts, nil
+}
+
+// RequestBound returns the bound for each request after connecting, for
+// client.WithRequestTimeout; 0 means no bound. See requestBound.
+func (c DeviceConfig) RequestBound() (time.Duration, error) {
+	return requestBound(c.Timeout, c.RequestTimeout)
+}
+
+// maxRequestTimeoutMS is the largest --request-timeout that a time.Duration
+// holds.
+const maxRequestTimeoutMS = int64(math.MaxInt64 / int64(time.Millisecond))
+
+// requestBound is the bound for each request: --request-timeout when it is
+// set (0: no bound), otherwise --timeout when it is above 0, as before
+// --request-timeout existed, otherwise no bound. A negative --request-timeout,
+// or one too large for a time.Duration, is an error.
+func requestBound(timeoutMS int, requestMS *int) (time.Duration, error) {
+	if requestMS == nil {
+		if timeoutMS > 0 {
+			return time.Duration(timeoutMS) * time.Millisecond, nil
+		}
+		return 0, nil
+	}
+	ms := int64(*requestMS)
+	if ms < 0 {
+		return 0, fmt.Errorf("request-timeout must be >= 0 (0: no bound per request), got %d", ms)
+	}
+	if ms > maxRequestTimeoutMS {
+		return 0, fmt.Errorf("request-timeout must be at most %d, got %d", maxRequestTimeoutMS, ms)
+	}
+	return time.Duration(ms) * time.Millisecond, nil
 }
 
 // UseExplicitTSAP reports whether both local and remote TSAP are set (connection mode precedence 1).
@@ -374,13 +413,21 @@ type ProfileConfig struct {
 	DialConfig
 	IP                string `flag:"ip" env:"S7COMMCTL_IP" desc:"Target IP address"`
 	Port              int    `flag:"port" env:"S7COMMCTL_PORT" desc:"TCP port (default 102)"`
-	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds for each probe, connecting and each request; the whole run is bounded by twice this (0: 5 s, no bound per request)"`
+	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout in milliseconds for each probe, connecting, and each request when --request-timeout is not set; the whole run is bounded by twice this (0: 5 s, no bound per request)"`
+	RequestTimeout    *int   `flag:"request-timeout" env:"S7COMMCTL_REQUEST_TIMEOUT" desc:"Timeout in milliseconds for each request after connecting, within the bound of the whole run (not set: --timeout; 0: no bound per request)"`
 	NoExposureWarning bool   `flag:"no-exposure-warning" env:"S7COMMCTL_NO_EXPOSURE_WARNING" desc:"Suppress public routable IP warning"`
 	Format            string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format: text, json"`
 }
 
 func DefaultProfileConfig() ProfileConfig {
 	return ProfileConfig{Port: 102, Timeout: 5000, Format: "text"}
+}
+
+// RequestBound returns the bound for each request of identify and the block
+// list, for client.WithRequestTimeout; 0 means no bound. The run's own bound
+// (twice --timeout) applies as well. See requestBound.
+func (c ProfileConfig) RequestBound() (time.Duration, error) {
+	return requestBound(c.Timeout, c.RequestTimeout)
 }
 
 func parseConfirmKind(s string, strict bool) client.ConfirmationKind {
@@ -433,9 +480,42 @@ func RegisterFlags(cmd *cobra.Command, cfg any) {
 			cmd.Flags().IntVar(v.Field(i).Addr().Interface().(*int), flagName, int(v.Field(i).Int()), desc)
 		case reflect.Bool:
 			cmd.Flags().BoolVar(v.Field(i).Addr().Interface().(*bool), flagName, v.Field(i).Bool(), desc)
+		case reflect.Pointer:
+			if p, ok := v.Field(i).Addr().Interface().(**int); ok {
+				cmd.Flags().Var(optionalInt{p}, flagName, desc)
+			}
 		}
 	}
 }
+
+// optionalInt is the flag of an *int field: the field stays nil until the
+// flag or the environment sets it, so a command can tell a value that was not
+// given from 0. It parses a value as an int flag does; the empty string, the
+// default, sets the field back to nil.
+type optionalInt struct{ p **int }
+
+func (o optionalInt) String() string {
+	if *o.p == nil {
+		return ""
+	}
+	return strconv.Itoa(**o.p)
+}
+
+func (o optionalInt) Set(s string) error {
+	if s == "" {
+		*o.p = nil
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 0, strconv.IntSize)
+	if err != nil {
+		return err
+	}
+	v := int(n)
+	*o.p = &v
+	return nil
+}
+
+func (o optionalInt) Type() string { return "int" }
 
 // LoadFromEnv populates config from environment
 func LoadFromEnv(cfg any) {
@@ -473,6 +553,12 @@ func LoadFromEnv(cfg any) {
 		case reflect.Bool:
 			if val, err := strconv.ParseBool(envValue); err == nil {
 				field.SetBool(val)
+			}
+		case reflect.Pointer:
+			if field.Type().Elem().Kind() == reflect.Int {
+				if val, err := strconv.Atoi(envValue); err == nil {
+					field.Set(reflect.ValueOf(&val))
+				}
 			}
 		case reflect.Slice:
 			if field.Type().Elem().Kind() == reflect.String {

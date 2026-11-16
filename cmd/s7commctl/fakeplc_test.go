@@ -64,6 +64,9 @@ type fakePLC struct {
 	// stopped PLC sends nothing more.
 	slowAnswer  time.Duration
 	slowRequest int
+	// slowSetup, when positive, is how long the PLC takes to answer Setup
+	// Communication on each connection: connecting takes that long.
+	slowSetup time.Duration
 
 	done     chan struct{} // closed by stop
 	stopOnce sync.Once
@@ -123,7 +126,12 @@ func (p *fakePLC) slowAnswersSent() int {
 
 // waitSlowAnswer waits slowAnswer and reports false when the PLC stopped first.
 func (p *fakePLC) waitSlowAnswer() bool {
-	t := time.NewTimer(p.slowAnswer)
+	return p.wait(p.slowAnswer)
+}
+
+// wait waits d and reports false when the PLC stopped first.
+func (p *fakePLC) wait(d time.Duration) bool {
+	t := time.NewTimer(d)
 	defer t.Stop()
 	select {
 	case <-t.C:
@@ -204,6 +212,9 @@ func (p *fakePLC) serve(conn net.Conn) {
 			if adm == admitNoSetup {
 				resp = ackData(h.PDURef, 0x81, 0x04, nil, nil)
 				break
+			}
+			if p.slowSetup > 0 && !p.wait(p.slowSetup) {
+				return
 			}
 			setup := []byte{wire.FuncSetupComm, 0, 0, 1, 0, 1, 0, 0}
 			binary.BigEndian.PutUint16(setup[6:8], 240)

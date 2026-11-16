@@ -1381,6 +1381,148 @@ func TestTimeout_BoundsEachRequest(t *testing.T) {
 	}
 }
 
+// TestRequestTimeout_BoundsEachRequest: --request-timeout bounds each request
+// after connecting, through WithRequestTimeout, and --timeout keeps bounding
+// connecting. Not set, --timeout bounds each request as well, as before the
+// flag; 0 sets no bound per request; a value above 0 is the bound whatever
+// --timeout is; a negative value is a usage error before connecting.
+func TestRequestTimeout_BoundsEachRequest(t *testing.T) {
+	wantTimeout := func(msg string) func(t *testing.T, p *fakePLC, r cliResult) {
+		return func(t *testing.T, p *fakePLC, r cliResult) {
+			t.Helper()
+			r.wantCode(t, msg, func(code int) bool { return code == codeTimeout }, "5 (timeout)")
+			if !errors.Is(r.err, context.DeadlineExceeded) {
+				t.Errorf("error %q does not match context.DeadlineExceeded", r.err)
+			}
+			if n := p.slowAnswersSent(); n != 0 {
+				t.Errorf("the command waited for the slow answer (%d sent)", n)
+			}
+		}
+	}
+	answered := func(t *testing.T, p *fakePLC, r cliResult) {
+		t.Helper()
+		r.ok(t).has(t, "6ES7 315-2EH14-0AB0")
+		if n := p.slowAnswersSent(); n != 1 {
+			t.Errorf("slow answers sent = %d, want 1: the command did not wait for it", n)
+		}
+	}
+	for _, tc := range []struct {
+		name       string
+		slowAnswer time.Duration // the first request after setup
+		slowSetup  time.Duration
+		flags      []string
+		check      func(t *testing.T, p *fakePLC, r cliResult)
+	}{
+		{"not set: --timeout bounds each request", 5 * time.Second, 0,
+			[]string{"--timeout", "200"}, wantTimeout("identify failed")},
+		{"not set: --timeout 0 sets no bound per request", 300 * time.Millisecond, 0,
+			[]string{"--timeout", "0"}, answered},
+		{"0: no bound per request", 300 * time.Millisecond, 0,
+			[]string{"--timeout", "200", "--request-timeout", "0"}, answered},
+		// A setup answer after 2 s, within go-s7comm's default 5 s: only
+		// --timeout ends connecting earlier.
+		{"0: --timeout bounds connecting", 0, 2 * time.Second,
+			[]string{"--timeout", "200", "--request-timeout", "0"}, wantTimeout("connect failed")},
+		{"above 0, --timeout 0", 5 * time.Second, 0,
+			[]string{"--timeout", "0", "--request-timeout", "200"}, wantTimeout("identify failed")},
+		{"above 0, below --timeout", 5 * time.Second, 0,
+			[]string{"--timeout", "10000", "--request-timeout", "200"}, wantTimeout("identify failed")},
+		{"above 0, above --timeout", 500 * time.Millisecond, 0,
+			[]string{"--timeout", "200", "--request-timeout", "3000"}, answered},
+		{"above 0: --timeout bounds connecting", 0, 2 * time.Second,
+			[]string{"--timeout", "200", "--request-timeout", "3000"}, wantTimeout("connect failed")},
+		{"negative", 0, 0, []string{"--request-timeout", "-1"},
+			func(t *testing.T, p *fakePLC, r cliResult) {
+				r.wantUsage(t, "request-timeout must be >= 0 (0: no bound per request), got -1")
+				if n := p.dialCount(); n != 0 {
+					t.Errorf("connected %d times before refusing --request-timeout -1", n)
+				}
+			}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newFakePLC(t)
+			p.slowAnswer, p.slowSetup = tc.slowAnswer, tc.slowSetup
+			tc.check(t, p, runCLI(t, append(p.args("identify"), tc.flags...)...))
+		})
+	}
+}
+
+// TestRequestTimeout_SameResultAsTimeout: a request that ends at
+// --request-timeout gives the exit code, the error and the output of a
+// request that ends at --timeout. Each command runs twice against a PLC that
+// answers its first request after 5 s: with --timeout 200, and with --timeout
+// 10000 and --request-timeout 200.
+func TestRequestTimeout_SameResultAsTimeout(t *testing.T) {
+	for _, command := range [][]string{
+		{"identify"}, {"fingerprint"}, {"diagnostic", "--format", "json"}, {"list", "blocks"}, {"list", "db"},
+		{"blocks"}, {"block", "info", "--type", "DB", "--number", "1"},
+		{"block", "upload", "--type", "DB", "--number", "1"}, {"write", "--dangerous", "--force", "--value", "01"},
+		{"read", "--strict-read"}, {"record", "--every-ms", "1", "--count", "3", "--max-failures", "1"},
+	} {
+		t.Run(strings.Join(command, " "), func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "rec")
+			var results []cliResult
+			for _, flags := range [][]string{
+				{"--timeout", "200"},
+				{"--timeout", "10000", "--request-timeout", "200"},
+			} {
+				p := newFakePLC(t)
+				p.slowAnswer = 5 * time.Second
+				p.upload = [][]byte{{0xDE, 0xAD}}
+				args := append(p.args(command...), flags...)
+				if command[0] == "record" {
+					args = append(args, "--output", out)
+				}
+				r := runCLI(t, args...)
+				if r.err == nil {
+					t.Fatalf("%v: no error\nstdout:\n%s", flags, r.stdout)
+				}
+				if n := p.slowAnswersSent(); n != 0 {
+					t.Errorf("%v: the command waited for the slow answer (%d sent)", flags, n)
+				}
+				// The PLCs listen on different ports, which JSON output names.
+				r.stdout = strings.ReplaceAll(r.stdout, p.port, "<port>")
+				results = append(results, r)
+			}
+			byTimeout, byRequestTimeout := results[0], results[1]
+			if a, b := exitCodeOf(t, byTimeout.err), exitCodeOf(t, byRequestTimeout.err); a != b {
+				t.Errorf("exit code %d with --request-timeout, %d with --timeout", b, a)
+			}
+			if a, b := byTimeout.err.Error(), byRequestTimeout.err.Error(); a != b {
+				t.Errorf("error %q with --request-timeout, %q with --timeout", b, a)
+			}
+			if a, b := byTimeout.stdout, byRequestTimeout.stdout; a != b {
+				t.Errorf("stdout with --request-timeout:\n%s\nwith --timeout:\n%s", b, a)
+			}
+		})
+	}
+}
+
+// TestRequestTimeout_NegativeIsRefusedBeforeConnecting: every command with
+// --request-timeout refuses a negative value with exit 2 before anything
+// reaches the network.
+func TestRequestTimeout_NegativeIsRefusedBeforeConnecting(t *testing.T) {
+	for _, command := range [][]string{
+		{"read"}, {"write", "--dangerous", "--force", "--value", "01"}, {"identify"}, {"diagnostic"},
+		{"fingerprint"}, {"record"}, {"list", "blocks"}, {"list", "db"}, {"blocks"},
+		{"block", "info", "--type", "DB", "--number", "1"}, {"block", "upload", "--type", "DB", "--number", "1"},
+		{"scan", "read-ranges"}, {"profile"},
+	} {
+		t.Run(strings.Join(command, " "), func(t *testing.T) {
+			p := newFakePLC(t)
+			args := append(p.args(command...), "--request-timeout", "-5")
+			if command[0] == "record" {
+				// --count 1: a record that is not refused ends after one sample.
+				args = append(args, "--count", "1", "--every-ms", "1", "--output", filepath.Join(t.TempDir(), "rec"))
+			}
+			runCLI(t, args...).wantUsage(t, "request-timeout must be >= 0 (0: no bound per request), got -5")
+			if n := p.dialCount(); n != 0 {
+				t.Errorf("connected %d times before refusing --request-timeout -5", n)
+			}
+		})
+	}
+}
+
 // TestTimeout_ZeroOrNegativeSetsNoRequestBound: --timeout 0 or a negative
 // value leaves the requests unbounded, as before: the command waits for a
 // slow answer. Connecting keeps the library's default bound.
