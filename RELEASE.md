@@ -1,5 +1,27 @@
 # s7commctl Releases
 
+## v0.13.0
+
+**Date:** 2026-11-19
+**Previous release:** v0.12.0
+
+Built on go-s7comm v0.18.0 (was v0.17.1; go-s7comm RELEASE.md, v0.18.0). Timers and counters can now be read: on areas T and C, `--offset` and `--size` count elements, not bytes. No exit code changes.
+
+### Breaking
+
+- **Timers and counters are addressed by element.** On `--area T` and `--area C`, `read`, `write`, `record`, `compare read` and `scan read-ranges` send transport size TIMER (`0x1D`) or COUNTER (`0x1C`) with `--offset` (and `--start` / `--end`) as the timer or counter number and `--size` (and `--probe-size`) as the number of elements, two bytes each: `read --area T --offset 5 --size 2` reads T5 and T6 and prints four bytes. Before, they sent BYTE with a byte offset, which CPUs refuse on these areas, so such reads failed. Who notices: a script that read T or C with a byte offset or a byte count; it now gets the elements of that number, and twice as many bytes as `--size`.
+
+### Changed
+
+- `write --area T` or `--area C` takes a value of whole elements (an even number of bytes) and refuses `--bit`, `--type bool` and `--type string` with a usage error (exit 2) before connecting. CPUs refuse writes to timers and counters with an item return code.
+- The help text of `--offset`, `--size`, `--start`, `--end` and `--probe-size` names the element addressing of T and C (docs/commands.md). README.md and PROTOCOL.md (4.7) describe it.
+
+### Tests
+
+- `cmd/s7commctl/timers_test.go`: reads of T and C by element against the fake PLC (number, count, the bytes printed), a write to C by element with transport size COUNTER, and the usage errors. The fake PLC decodes timer and counter items by element and answers them as an OCTET STRING.
+
+---
+
 ## v0.12.0
 
 **Date:** 2026-11-16

@@ -204,8 +204,8 @@ type ReadConfig struct {
 	DeviceConfig
 	Area       string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200"`
 	DBNumber   int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
-	Offset     int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
-	Size       int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes"`
+	Offset     int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset (on T and C: element number)"`
+	Size       int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes (on T and C: elements of two bytes)"`
 	Type       string `flag:"type" env:"S7COMMCTL_TYPE" desc:"Data type"`
 	Format     string `flag:"format" env:"S7COMMCTL_FORMAT" desc:"Output format"`
 	StrictRead bool   `flag:"strict-read" env:"S7COMMCTL_STRICT_READ" desc:"Fail when status is not success (e.g. short-read, empty-read)"`
@@ -220,7 +220,7 @@ type WriteConfig struct {
 	DeviceConfig
 	Area      string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area (DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200)"`
 	DBNumber  int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
-	Offset    int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
+	Offset    int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset (on T and C: element number)"`
 	Value     string `flag:"value" desc:"Value to write"`
 	Type      string `flag:"type" desc:"Data type"`
 	Bit       int    `flag:"bit" desc:"Bit 0-7 of the byte at --offset: the one bit --type bool writes (required with --type bool)"`
@@ -363,10 +363,10 @@ type ScanReadRangesConfig struct {
 	DeviceConfig
 	Area         string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200"`
 	DBNumber     int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number (for DB area)"`
-	Start        int    `flag:"start" env:"S7COMMCTL_SCAN_START" desc:"Start offset (inclusive)"`
-	End          int    `flag:"end" env:"S7COMMCTL_SCAN_END" desc:"End offset (exclusive)"`
+	Start        int    `flag:"start" env:"S7COMMCTL_SCAN_START" desc:"Start offset (inclusive; on T and C: element number)"`
+	End          int    `flag:"end" env:"S7COMMCTL_SCAN_END" desc:"End offset (exclusive; on T and C: element number)"`
 	Step         int    `flag:"step" env:"S7COMMCTL_SCAN_STEP" desc:"Step between probes (0 = use probe-size)"`
-	ProbeSize    int    `flag:"probe-size" env:"S7COMMCTL_PROBE_SIZE" desc:"Bytes to read per probe"`
+	ProbeSize    int    `flag:"probe-size" env:"S7COMMCTL_PROBE_SIZE" desc:"Bytes to read per probe (on T and C: elements)"`
 	Retries      int    `flag:"retries" env:"S7COMMCTL_SCAN_RETRIES" desc:"Retries per probe"`
 	RetryDelayMS int    `flag:"retry-delay-ms" env:"S7COMMCTL_SCAN_RETRY_DELAY_MS" desc:"Delay between retries in ms"`
 	Repeat       int    `flag:"repeat" env:"S7COMMCTL_SCAN_REPEAT" desc:"Repeat each probe N times for stability"`
@@ -396,8 +396,8 @@ type CompareReadConfig struct {
 	Candidates        string `flag:"candidates" env:"S7COMMCTL_COMPARE_CANDIDATES" desc:"Rack/slot pairs: 0/0,0/1,0/2"`
 	Area              string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area (DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200)"`
 	DBNumber          int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
-	Offset            int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
-	Size              int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes"`
+	Offset            int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset (on T and C: element number)"`
+	Size              int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes (on T and C: elements of two bytes)"`
 	Timeout           int    `flag:"timeout" env:"S7COMMCTL_TIMEOUT" desc:"Timeout per candidate in ms"`
 	Repeat            int    `flag:"repeat" env:"S7COMMCTL_COMPARE_REPEAT" desc:"Repeat compare N times (for dynamic data)"`
 	IntervalMS        int    `flag:"interval-ms" env:"S7COMMCTL_COMPARE_INTERVAL_MS" desc:"Delay between repeat runs in ms"`

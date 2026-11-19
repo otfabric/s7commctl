@@ -28,9 +28,9 @@ const (
 type fakeWrite struct {
 	area      byte
 	db        int
-	start     int // byte address
+	start     int // byte address; on timers and counters the element number
 	data      []byte
-	transport byte // S7ANY transport size: 0x01 BIT, 0x02 BYTE
+	transport byte // S7ANY transport size: 0x01 BIT, 0x02 BYTE, 0x1C COUNTER, 0x1D TIMER
 	bitAddr   int  // S7ANY address in bits: start*8 plus the bit of a BIT item
 }
 
@@ -277,7 +277,12 @@ func (p *fakePLC) serve(conn net.Conn) {
 
 func (p *fakePLC) handleRead(ref uint16, param []byte) []byte {
 	size, db, area, start := parseS7Any(param[2:14])
-	reply := fakeReply{data: patternBytes(start, size)}
+	element := elementItem(param[2:14])
+	n := size
+	if element {
+		n = size * wire.ElementAreaBytes
+	}
+	reply := fakeReply{data: patternBytes(start, n)}
 	if p.read != nil {
 		reply = p.read(area, db, start, size)
 	}
@@ -289,12 +294,19 @@ func (p *fakePLC) handleRead(ref uint16, param []byte) []byte {
 	}
 	item := []byte{wire.RetCodeSuccess, 0x04, 0, 0}
 	binary.BigEndian.PutUint16(item[2:4], uint16(len(reply.data)*8))
+	if element { // OCTET STRING, length in bytes, as a CPU answers timers and counters
+		item[1] = wire.DataTransportSizeOctet
+		binary.BigEndian.PutUint16(item[2:4], uint16(len(reply.data)))
+	}
 	return ackData(ref, 0, 0, []byte{wire.FuncReadVar, 1}, append(item, reply.data...))
 }
 
 func (p *fakePLC) handleWrite(ref uint16, param, data []byte) []byte {
 	size, db, area, start := parseS7Any(param[2:14])
 	a := param[2:14]
+	if elementItem(a) {
+		size *= wire.ElementAreaBytes
+	}
 	p.mu.Lock()
 	p.writes = append(p.writes, fakeWrite{area: area, db: db, start: start, data: append([]byte(nil), data[4:4+size]...),
 		transport: a[3], bitAddr: int(a[9])<<16 | int(a[10])<<8 | int(a[11])})
@@ -439,13 +451,23 @@ func patternBytes(start, size int) []byte {
 	return b
 }
 
+// parseS7Any decodes an S7ANY item. On the timer and counter areas, with
+// transport size TIMER or COUNTER, start is the element number and size the
+// number of elements; elsewhere they count bytes.
 func parseS7Any(a []byte) (size, db int, area byte, start int) {
 	size = int(binary.BigEndian.Uint16(a[4:6]))
 	db = int(binary.BigEndian.Uint16(a[6:8]))
 	area = a[8]
-	start = (int(a[9])<<16 | int(a[10])<<8 | int(a[11])) / 8
+	start = int(a[9])<<16 | int(a[10])<<8 | int(a[11])
+	if !elementItem(a) {
+		start /= 8
+	}
 	return size, db, area, start
 }
+
+// elementItem reports whether an S7ANY item addresses timers or counters by
+// element: its transport size is the area code (TIMER 0x1D, COUNTER 0x1C).
+func elementItem(a []byte) bool { return wire.IsElementArea(a[8]) && a[3] == a[8] }
 
 // parseCR extracts the caller's reference and the called rack/slot from a COTP
 // connection request.

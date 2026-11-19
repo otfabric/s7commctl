@@ -84,7 +84,7 @@ Current status:
 - Implemented
 	- Discovery workflow with TCP/102 probing, rack/slot probing, negotiated PDU/TSAP reporting
 	- Identify command using SZL-backed device metadata (CPU/order/module/firmware where exposed)
-	- Read for DB, I, Q, M, T, C and extended areas (DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200)
+	- Read for DB, I, Q, M, T, C and extended areas (DATA_RECORD, S7200AO, IEC_COUNTER_200, IEC_TIMER_200); on T and C, `--offset` is the timer or counter number and `--size` counts elements of two bytes
 	- Typed reads of BOOL, INT, DINT, REAL, STRING; typed writes of INT, DINT, REAL, STRING (current length and characters, within the STRING's declared maximum) and BOOL (one bit, `--bit` required)
 	- Write safety model: explicit `--dangerous`, a confirmation prompt that names the target and the value, optional `--force`
 	- Block management: list, DB listing, block info, block upload (OB/DB/FB/FC/SFB/SFC support path)
