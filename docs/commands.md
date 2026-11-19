@@ -102,11 +102,11 @@ Connect to each candidate (rack/slot), perform the same read, report results and
 | `--interval-ms` | int | Delay between repeat runs in ms [env: S7COMMCTL_COMPARE_INTERVAL_MS] |
 | `--ip` | string | Target IP [env: S7COMMCTL_IP] |
 | `--no-exposure-warning` | bool | Suppress public routable IP warning [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
-| `--offset` | int | Byte offset [env: S7COMMCTL_OFFSET] |
+| `--offset` | int | Byte offset (on T and C: element number) [env: S7COMMCTL_OFFSET] |
 | `--port` | int | Port (default 102) [env: S7COMMCTL_PORT] (default 102) |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
 | `--repeat` | int | Repeat compare N times (for dynamic data) [env: S7COMMCTL_COMPARE_REPEAT] |
-| `--size` | int | Number of bytes [env: S7COMMCTL_SIZE] |
+| `--size` | int | Number of bytes (on T and C: elements of two bytes) [env: S7COMMCTL_SIZE] |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
 | `--timeout` | int | Timeout per candidate in ms [env: S7COMMCTL_TIMEOUT] (default 5000) |
 
@@ -345,7 +345,7 @@ Read data from an S7 device
 | `--ip` | string | S7 device IP address [env: S7COMMCTL_IP] |
 | `--local-tsap` | string | Local TSAP (decimal or 0x hex) [env: S7COMMCTL_LOCAL_TSAP] |
 | `--no-exposure-warning` | bool | Suppress public routable IP warning (e.g. authorized environments) [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
-| `--offset` | int | Byte offset [env: S7COMMCTL_OFFSET] |
+| `--offset` | int | Byte offset (on T and C: element number) [env: S7COMMCTL_OFFSET] |
 | `--port` | int | S7 port (default 102) [env: S7COMMCTL_PORT] (default 102) |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
 | `--quiet` | bool | Minimal output [env: S7COMMCTL_QUIET] |
@@ -353,7 +353,7 @@ Read data from an S7 device
 | `--rate-limit-ms` | int | Minimum delay between protocol operations in ms [env: S7COMMCTL_RATE_LIMIT_MS] |
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--request-timeout` | int | Timeout in milliseconds for each request after connecting (not set: --timeout; 0: no bound per request) [env: S7COMMCTL_REQUEST_TIMEOUT] |
-| `--size` | int | Number of bytes [env: S7COMMCTL_SIZE] (default 1) |
+| `--size` | int | Number of bytes (on T and C: elements of two bytes) [env: S7COMMCTL_SIZE] (default 1) |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
 | `--strict-read` | bool | Fail when status is not success (e.g. short-read, empty-read) [env: S7COMMCTL_STRICT_READ] |
@@ -377,7 +377,7 @@ Record periodic S7 reads to a local file
 | `--local-tsap` | string | Local TSAP (decimal or 0x hex) [env: S7COMMCTL_LOCAL_TSAP] |
 | `--max-failures` | int | Stop after this many consecutive samples fail with a transport error or timeout (0 = never stop) [env: S7COMMCTL_MAX_FAILURES] (default 5) |
 | `--no-exposure-warning` | bool | Suppress public routable IP warning (e.g. authorized environments) [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
-| `--offset` | int | Byte offset [env: S7COMMCTL_OFFSET] |
+| `--offset` | int | Byte offset (on T and C: element number) [env: S7COMMCTL_OFFSET] |
 | `--output` | string | Output file path [env: S7COMMCTL_OUTPUT] (default "record.jsonl") |
 | `--port` | int | S7 port (default 102) [env: S7COMMCTL_PORT] (default 102) |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
@@ -386,7 +386,7 @@ Record periodic S7 reads to a local file
 | `--rate-limit-ms` | int | Minimum delay between protocol operations in ms [env: S7COMMCTL_RATE_LIMIT_MS] |
 | `--remote-tsap` | string | Remote TSAP (decimal or 0x hex) [env: S7COMMCTL_REMOTE_TSAP] |
 | `--request-timeout` | int | Timeout in milliseconds for each request after connecting (not set: --timeout; 0: no bound per request) [env: S7COMMCTL_REQUEST_TIMEOUT] |
-| `--size` | int | Number of bytes per sample [env: S7COMMCTL_SIZE] (default 1) |
+| `--size` | int | Number of bytes per sample (on T and C: elements of two bytes) [env: S7COMMCTL_SIZE] (default 1) |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
 | `--timeout` | int | Timeout in milliseconds for connecting, and for each request when --request-timeout is not set (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
@@ -419,13 +419,13 @@ Probe an area from start to end by step; consolidate adjacent readable probes in
 | `--auto-rack-slot` | bool | Auto-detect rack/slot [env: S7COMMCTL_AUTO_RACK_SLOT] |
 | `--brute-rack-slot` | bool | Brute rack 0-3 and slot 0-5 [env: S7COMMCTL_BRUTE_RACK_SLOT] |
 | `--db` | int | Data block number (for DB area) [env: S7COMMCTL_DB] (default 1) |
-| `--end` | int | End offset (exclusive) [env: S7COMMCTL_SCAN_END] (default 256) |
+| `--end` | int | End offset (exclusive; on T and C: element number) [env: S7COMMCTL_SCAN_END] (default 256) |
 | `--format` | string | Output format: json, table, spans [env: S7COMMCTL_FORMAT] (default "spans") |
 | `--ip` | string | S7 device IP address [env: S7COMMCTL_IP] |
 | `--local-tsap` | string | Local TSAP (decimal or 0x hex) [env: S7COMMCTL_LOCAL_TSAP] |
 | `--no-exposure-warning` | bool | Suppress public routable IP warning (e.g. authorized environments) [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
 | `--port` | int | S7 port (default 102) [env: S7COMMCTL_PORT] (default 102) |
-| `--probe-size` | int | Bytes to read per probe [env: S7COMMCTL_PROBE_SIZE] (default 8) |
+| `--probe-size` | int | Bytes to read per probe (on T and C: elements) [env: S7COMMCTL_PROBE_SIZE] (default 8) |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
 | `--quiet` | bool | Minimal output [env: S7COMMCTL_QUIET] |
 | `--rack` | int | PLC rack number [env: S7COMMCTL_RACK] |
@@ -437,7 +437,7 @@ Probe an area from start to end by step; consolidate adjacent readable probes in
 | `--retry-delay-ms` | int | Delay between retries in ms [env: S7COMMCTL_SCAN_RETRY_DELAY_MS] |
 | `--slot` | int | PLC slot number [env: S7COMMCTL_SLOT] (default 1) |
 | `--source-addr` | string | Local IP address to connect from (multi-homed hosts) [env: S7COMMCTL_SOURCE_ADDR] |
-| `--start` | int | Start offset (inclusive) [env: S7COMMCTL_SCAN_START] |
+| `--start` | int | Start offset (inclusive; on T and C: element number) [env: S7COMMCTL_SCAN_START] |
 | `--step` | int | Step between probes (0 = use probe-size) [env: S7COMMCTL_SCAN_STEP] |
 | `--summary-only` | bool | Print only span summary (no per-probe table) [env: S7COMMCTL_SCAN_SUMMARY_ONLY] |
 | `--timeout` | int | Timeout in milliseconds for connecting, and for each request when --request-timeout is not set (0: 5 s for connecting, no bound per request) [env: S7COMMCTL_TIMEOUT] (default 5000) |
@@ -484,7 +484,7 @@ Write data to an S7 device
 | `--ip` | string | S7 device IP address [env: S7COMMCTL_IP] |
 | `--local-tsap` | string | Local TSAP (decimal or 0x hex) [env: S7COMMCTL_LOCAL_TSAP] |
 | `--no-exposure-warning` | bool | Suppress public routable IP warning (e.g. authorized environments) [env: S7COMMCTL_NO_EXPOSURE_WARNING] |
-| `--offset` | int | Byte offset [env: S7COMMCTL_OFFSET] |
+| `--offset` | int | Byte offset (on T and C: element number) [env: S7COMMCTL_OFFSET] |
 | `--port` | int | S7 port (default 102) [env: S7COMMCTL_PORT] (default 102) |
 | `--proxy` | string | Connect through a SOCKS5 proxy: socks5://host:port (socks5h:// resolves names at the proxy) [env: S7COMMCTL_PROXY] |
 | `--quiet` | bool | Minimal output [env: S7COMMCTL_QUIET] |

@@ -283,6 +283,8 @@ Examples:
 - read 16 bytes at offset 0 from DB1
 - read 8 bytes at offset 32 from area I
 
+Timers and counters (areas **T** and **C**) are addressed by element, not by byte: the offset is the timer or counter number and the size the number of elements, two bytes each. `read --area T --offset 5 --size 2` reads T5 and T6 (four bytes). The request uses transport size TIMER or COUNTER, as a CPU requires; CPUs refuse a write to a timer or counter with an item return code.
+
 In practice, outcomes include:
 
 - full success

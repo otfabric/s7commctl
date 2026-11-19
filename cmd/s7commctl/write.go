@@ -14,6 +14,7 @@ import (
 
 	"github.com/otfabric/go-s7comm/client"
 	"github.com/otfabric/go-s7comm/model"
+	"github.com/otfabric/go-s7comm/wire"
 
 	"github.com/otfabric/s7commctl/internal/app/config"
 	"github.com/otfabric/s7commctl/internal/app/validate"
@@ -177,6 +178,10 @@ func (p writePlan) noteSuffix() string {
 // --bit was given.
 func planWrite(cfg config.WriteConfig, area model.Area, bitSet bool) (writePlan, error) {
 	typ := strings.ToLower(cfg.Type)
+	element := wire.IsElementArea(byte(area))
+	if element && (bitSet || typ == "string" || typ == "bool") {
+		return writePlan{}, fmt.Errorf("on %s --offset is a %s number and a value is whole elements of two bytes: --bit, --type bool and --type string do not apply", area, elementName(area))
+	}
 	if bitSet {
 		if typ != "bool" {
 			return writePlan{}, fmt.Errorf("--bit applies to --type bool only")
@@ -207,6 +212,9 @@ func planWrite(cfg config.WriteConfig, area model.Area, bitSet bool) (writePlan,
 	data, err := validate.ParseTypedValue(cfg.Value, cfg.Type)
 	if err != nil {
 		return writePlan{}, fmt.Errorf("invalid value: %w", err)
+	}
+	if element && len(data)%wire.ElementAreaBytes != 0 {
+		return writePlan{}, fmt.Errorf("on %s a value is whole %ss of two bytes, got %d bytes", area, elementName(area), len(data))
 	}
 	plan := writePlan{start: cfg.Offset, data: data, bit: -1}
 	if typ == "string" {
@@ -328,4 +336,12 @@ func confirmWrite(in io.Reader, prompt string) bool {
 		return false
 	}
 	return strings.EqualFold(strings.TrimSpace(line), "yes")
+}
+
+// elementName is what one element of a timer or counter area is called.
+func elementName(area model.Area) string {
+	if area == model.AreaTimer {
+		return "timer"
+	}
+	return "counter"
 }

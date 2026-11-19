@@ -23,8 +23,8 @@ type recordConfig struct {
 	config.DeviceConfig
 	Area     string `flag:"area" env:"S7COMMCTL_AREA" desc:"Memory area: DB, I, Q, M, T, C, DATA_RECORD, S7200AO, IEC_*_200"`
 	DBNumber int    `flag:"db" env:"S7COMMCTL_DB" desc:"Data block number"`
-	Offset   int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset"`
-	Size     int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes per sample"`
+	Offset   int    `flag:"offset" env:"S7COMMCTL_OFFSET" desc:"Byte offset (on T and C: element number)"`
+	Size     int    `flag:"size" env:"S7COMMCTL_SIZE" desc:"Number of bytes per sample (on T and C: elements of two bytes)"`
 	Type     string `flag:"type" env:"S7COMMCTL_TYPE" desc:"Data type"`
 	EveryMS  int    `flag:"every-ms" env:"S7COMMCTL_EVERY_MS" desc:"Sampling interval in milliseconds"`
 	Count    int    `flag:"count" env:"S7COMMCTL_COUNT" desc:"Number of samples (0 = run until interrupted)"`
