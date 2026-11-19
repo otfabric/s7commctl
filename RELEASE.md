@@ -2,7 +2,7 @@
 
 ## v0.13.0
 
-**Date:** 2026-11-19
+**Date:** 2026-11-20
 **Previous release:** v0.12.0
 
 Built on go-s7comm v0.18.0 (was v0.17.1; go-s7comm RELEASE.md, v0.18.0). Timers and counters can now be read: on areas T and C, `--offset` and `--size` count elements, not bytes. No exit code changes.
